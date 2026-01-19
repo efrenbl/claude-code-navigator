@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Nothing yet
 
+## [1.1.0] - 2026-01-19
+
+### Changed
+- **Pretty output by default**: All commands now output pretty-printed JSON with indentation for better readability
+- Replaced `--pretty` flag with `--compact` flag for minified JSON output
+- Updated help text to reflect new default behavior
+
+### Added
+- `--compact` flag for all commands to output minified JSON when needed
+
 ## [1.0.1] - 2026-01-19
 
 ### Added
@@ -80,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.1.0 | 2026-01-19 | Pretty output by default, `--compact` flag |
 | 1.0.1 | 2026-01-19 | Added `list_by_type()`, CLI improvements |
 | 1.0.0 | 2024-01-15 | Initial release |
 
@@ -99,6 +110,7 @@ None at this time.
 
 ---
 
-[Unreleased]: https://github.com/efrenbl/claude-code-navigator/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/efrenbl/claude-code-navigator/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/efrenbl/claude-code-navigator/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/efrenbl/claude-code-navigator/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/efrenbl/claude-code-navigator/releases/tag/v1.0.0

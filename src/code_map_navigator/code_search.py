@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 
 @dataclass
@@ -518,7 +518,9 @@ def main():
     parser.add_argument("--stats", action="store_true", help="Show codebase statistics")
     parser.add_argument("-l", "--limit", type=int, default=10, help="Maximum results (default: 10)")
     parser.add_argument("--no-fuzzy", action="store_true", help="Disable fuzzy matching")
-    parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
+    parser.add_argument(
+        "--compact", action="store_true", help="Output compact JSON (default: pretty-printed)"
+    )
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -569,10 +571,10 @@ def main():
         }
 
     # Output
-    if args.pretty:
-        print(json.dumps(result, indent=2))
+    if args.compact:
+        print(json.dumps(result, separators=(",", ":")))
     else:
-        print(json.dumps(result))
+        print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

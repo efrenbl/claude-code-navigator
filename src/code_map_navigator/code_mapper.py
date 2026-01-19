@@ -32,7 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 # Supported languages and their extensions
 LANGUAGE_EXTENSIONS = {
@@ -658,21 +658,23 @@ def main():
     """Command-line interface for the code mapper.
 
     Usage:
-        code-map /path/to/project [-o OUTPUT] [-i IGNORE...] [--pretty]
+        code-map /path/to/project [-o OUTPUT] [-i IGNORE...] [--compact]
 
     Example:
-        $ code-map /my/project -o .codemap.json --pretty
+        $ code-map /my/project -o .codemap.json
     """
     parser = argparse.ArgumentParser(
         description="Generate a code map for token-efficient navigation",
-        epilog="Example: code-map /my/project -o .codemap.json --pretty",
+        epilog="Example: code-map /my/project -o .codemap.json",
     )
     parser.add_argument("path", help="Path to the codebase root directory")
     parser.add_argument(
         "-o", "--output", default=".codemap.json", help="Output file path (default: .codemap.json)"
     )
     parser.add_argument("-i", "--ignore", nargs="*", help="Additional patterns to ignore")
-    parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
+    parser.add_argument(
+        "--compact", action="store_true", help="Output compact JSON (default: pretty-printed)"
+    )
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -689,16 +691,20 @@ def main():
         output_path = os.path.join(args.path, output_path)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        if args.pretty:
-            json.dump(code_map, f, indent=2)
-        else:
+        if args.compact:
             json.dump(code_map, f, separators=(",", ":"))
+        else:
+            json.dump(code_map, f, indent=2)
 
     print(f"\n✓ Code map generated: {output_path}", file=sys.stderr)
     print(f"  Files processed: {code_map['stats']['files_processed']}", file=sys.stderr)
     print(f"  Symbols found: {code_map['stats']['symbols_found']}", file=sys.stderr)
 
-    print(json.dumps({"output": output_path, "stats": code_map["stats"]}))
+    summary = {"output": output_path, "stats": code_map["stats"]}
+    if args.compact:
+        print(json.dumps(summary, separators=(",", ":")))
+    else:
+        print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":

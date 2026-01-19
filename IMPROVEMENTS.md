@@ -6,6 +6,21 @@ This document tracks potential improvements and enhancements for the project.
 
 ## Completed
 
+### Pretty output by default
+**Status:** Completed in v1.1.0
+
+All commands now output pretty-printed JSON by default for better readability:
+
+```bash
+# Pretty output (default)
+code-search --stats
+code-read src/api.py 10-20
+
+# Compact output when needed
+code-search --stats --compact
+code-read src/api.py 10-20 --compact
+```
+
 ### List symbols by type without query
 **Status:** Fixed in v1.0.1
 
@@ -25,15 +40,7 @@ code-search --type function --file "src/api/"
 
 ### High Priority
 
-#### 1. Pretty output by default
-**Effort:** Low | **Impact:** Medium
-
-JSON output is hard to read in terminal. Options:
-- Make `--pretty` the default
-- Add `--compact` flag for minified JSON
-- Add table format for terminal display
-
-#### 2. Incremental map updates
+#### 1. Incremental map updates
 **Effort:** High | **Impact:** High
 
 Instead of regenerating the entire map, update only modified files:
@@ -44,7 +51,7 @@ code-map . --incremental
 
 Compare file hashes and only re-analyze changed files.
 
-#### 3. Short command aliases
+#### 2. Short command aliases
 **Effort:** Medium | **Impact:** High
 
 ```bash

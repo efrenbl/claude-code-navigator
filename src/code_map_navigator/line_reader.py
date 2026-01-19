@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 
 class LineReader:
@@ -381,17 +381,20 @@ class LineReader:
         return result
 
 
-def format_output(result: Dict, style: str = "json") -> str:
+def format_output(result: Dict, style: str = "json", compact: bool = False) -> str:
     """Format the output for display.
 
     Args:
         result: The result dict to format.
         style: Output style ('json' or 'code').
+        compact: If True, output compact JSON without indentation.
 
     Returns:
         Formatted string representation.
     """
     if style == "json":
+        if compact:
+            return json.dumps(result, separators=(",", ":"))
         return json.dumps(result, indent=2)
 
     elif style == "code":
@@ -466,6 +469,9 @@ def main():
         default="json",
         help="Output format (default: json)",
     )
+    parser.add_argument(
+        "--compact", action="store_true", help="Output compact JSON (default: pretty-printed)"
+    )
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -512,7 +518,7 @@ def main():
         else:
             result = {"error": f"File not found: {args.file}"}
 
-    print(format_output(result, args.output))
+    print(format_output(result, args.output, compact=args.compact))
 
 
 if __name__ == "__main__":

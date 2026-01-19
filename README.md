@@ -44,10 +44,10 @@ Claude Code Navigator creates a lightweight index of your codebase **locally**, 
 │  User: "Fix the payment bug"                                │
 │                                                             │
 │  Claude reads:                                              │
-│  • payments.py      (500 lines)  → 7,500 tokens            │
-│  • billing.py       (300 lines)  → 4,500 tokens            │
-│  • models/order.py  (200 lines)  → 3,000 tokens            │
-│  ─────────────────────────────────────────────             │
+│  • payments.py      (500 lines)  → 7,500 tokens             │
+│  • billing.py       (300 lines)  → 4,500 tokens             │
+│  • models/order.py  (200 lines)  → 3,000 tokens             │
+│  ─────────────────────────────────────────────              │
 │  Total:                            15,000 tokens            │
 └─────────────────────────────────────────────────────────────┘
 
@@ -61,7 +61,7 @@ Claude Code Navigator creates a lightweight index of your codebase **locally**, 
 │                                                             │
 │  2. Read: lines 45-89 only                                  │
 │     Cost: ~400 tokens                                       │
-│  ─────────────────────────────────────────────             │
+│  ─────────────────────────────────────────────              │
 │  Total:                               500 tokens            │
 │                                                             │
 │  SAVINGS: 97% fewer tokens!                                 │

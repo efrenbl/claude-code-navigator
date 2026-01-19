@@ -126,8 +126,7 @@ def search_symbol(
 We use the following tools:
 
 - **black**: Code formatting
-- **isort**: Import sorting
-- **flake8**: Linting
+- **ruff**: Linting and import sorting (replaces flake8 and isort)
 - **mypy**: Type checking (optional but encouraged)
 
 ```bash
@@ -139,8 +138,8 @@ make lint
 
 # Or manually
 black src/ tests/
-isort src/ tests/
-flake8 src/ tests/
+ruff check src/ tests/
+ruff check --fix src/ tests/  # Auto-fix issues
 ```
 
 ## Running Tests

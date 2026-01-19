@@ -52,15 +52,14 @@ coverage:
 # Code Quality
 lint:
 	@echo "Checking code style..."
-	python -m flake8 src/ tests/ --max-line-length=100 --ignore=E501,W503
+	python -m ruff check src/ tests/
 	python -m black --check src/ tests/
-	python -m isort --check-only src/ tests/
 	@echo "All checks passed!"
 
 format:
 	@echo "Formatting code..."
+	python -m ruff check --fix src/ tests/
 	python -m black src/ tests/
-	python -m isort src/ tests/
 	@echo "Code formatted!"
 
 # Type checking

@@ -18,15 +18,15 @@ Example:
         ...     print(f"{r.name} in {r.file}:{r.lines}")
 """
 
-import json
-import sys
-import os
 import argparse
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
+import json
+import os
 import re
+import sys
+from dataclasses import dataclass
 from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 __version__ = "1.0.1"
 
@@ -55,6 +55,7 @@ class SearchResult:
         ... )
         >>> print(result.to_dict())
     """
+
     name: str
     type: str
     file: str
@@ -71,18 +72,18 @@ class SearchResult:
             Dict representation suitable for JSON serialization.
         """
         result = {
-            'name': self.name,
-            'type': self.type,
-            'file': self.file,
-            'lines': self.lines,
-            'score': round(self.score, 2)
+            "name": self.name,
+            "type": self.type,
+            "file": self.file,
+            "lines": self.lines,
+            "score": round(self.score, 2),
         }
         if self.signature:
-            result['signature'] = self.signature
+            result["signature"] = self.signature
         if self.docstring:
-            result['docstring'] = self.docstring
+            result["docstring"] = self.docstring
         if self.parent:
-            result['parent'] = self.parent
+            result["parent"] = self.parent
         return result
 
 
@@ -128,7 +129,7 @@ class CodeSearcher:
         Returns:
             Parsed code map dictionary.
         """
-        with open(self.map_path, 'r', encoding='utf-8') as f:
+        with open(self.map_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     def _similarity(self, a: str, b: str) -> float:
@@ -149,7 +150,7 @@ class CodeSearcher:
         symbol_type: Optional[str] = None,
         file_pattern: Optional[str] = None,
         limit: int = 10,
-        fuzzy: bool = True
+        fuzzy: bool = True,
     ) -> List[SearchResult]:
         """Search for symbols by name.
 
@@ -174,41 +175,43 @@ class CodeSearcher:
         results = []
         query_lower = query.lower()
 
-        index = self.code_map.get('index', {})
+        index = self.code_map.get("index", {})
 
         # Direct lookup for exact matches
         if query_lower in index:
             for entry in index[query_lower]:
-                if symbol_type and entry['type'] != symbol_type:
+                if symbol_type and entry["type"] != symbol_type:
                     continue
-                if file_pattern and not re.search(file_pattern, entry['file'], re.IGNORECASE):
+                if file_pattern and not re.search(file_pattern, entry["file"], re.IGNORECASE):
                     continue
 
-                file_info = self.code_map['files'].get(entry['file'], {})
-                for sym in file_info.get('symbols', []):
-                    if sym['name'].lower() == query_lower and sym['lines'] == entry['lines']:
-                        results.append(SearchResult(
-                            name=sym['name'],
-                            type=sym['type'],
-                            file=entry['file'],
-                            lines=sym['lines'],
-                            signature=sym.get('signature'),
-                            docstring=sym.get('docstring'),
-                            parent=sym.get('parent'),
-                            score=1.0
-                        ))
+                file_info = self.code_map["files"].get(entry["file"], {})
+                for sym in file_info.get("symbols", []):
+                    if sym["name"].lower() == query_lower and sym["lines"] == entry["lines"]:
+                        results.append(
+                            SearchResult(
+                                name=sym["name"],
+                                type=sym["type"],
+                                file=entry["file"],
+                                lines=sym["lines"],
+                                signature=sym.get("signature"),
+                                docstring=sym.get("docstring"),
+                                parent=sym.get("parent"),
+                                score=1.0,
+                            )
+                        )
 
         # Fuzzy search if enabled and more results needed
         if (not results or fuzzy) and len(results) < limit:
-            for file_path, file_info in self.code_map.get('files', {}).items():
+            for file_path, file_info in self.code_map.get("files", {}).items():
                 if file_pattern and not re.search(file_pattern, file_path, re.IGNORECASE):
                     continue
 
-                for sym in file_info.get('symbols', []):
-                    if symbol_type and sym['type'] != symbol_type:
+                for sym in file_info.get("symbols", []):
+                    if symbol_type and sym["type"] != symbol_type:
                         continue
 
-                    name_lower = sym['name'].lower()
+                    name_lower = sym["name"].lower()
 
                     # Skip if already found
                     if any(r.name.lower() == name_lower and r.file == file_path for r in results):
@@ -220,39 +223,37 @@ class CodeSearcher:
                     if name_lower == query_lower:
                         score = 1.0
                     elif query_lower in name_lower:
-                        score = 0.7 + (len(query) / len(sym['name'])) * 0.2
+                        score = 0.7 + (len(query) / len(sym["name"])) * 0.2
                     elif name_lower in query_lower:
                         score = 0.5
                     elif fuzzy:
-                        sim = self._similarity(query, sym['name'])
+                        sim = self._similarity(query, sym["name"])
                         if sim > 0.5:
                             score = sim * 0.6
 
                     # Boost for signature match
-                    if score > 0 and sym.get('signature'):
-                        if query_lower in sym['signature'].lower():
+                    if score > 0 and sym.get("signature"):
+                        if query_lower in sym["signature"].lower():
                             score = min(1.0, score + 0.1)
 
                     if score > 0.3:
-                        results.append(SearchResult(
-                            name=sym['name'],
-                            type=sym['type'],
-                            file=file_path,
-                            lines=sym['lines'],
-                            signature=sym.get('signature'),
-                            docstring=sym.get('docstring'),
-                            parent=sym.get('parent'),
-                            score=score
-                        ))
+                        results.append(
+                            SearchResult(
+                                name=sym["name"],
+                                type=sym["type"],
+                                file=file_path,
+                                lines=sym["lines"],
+                                signature=sym.get("signature"),
+                                docstring=sym.get("docstring"),
+                                parent=sym.get("parent"),
+                                score=score,
+                            )
+                        )
 
         results.sort(key=lambda x: (-x.score, x.name))
         return results[:limit]
 
-    def search_file(
-        self,
-        pattern: str,
-        limit: int = 20
-    ) -> List[Dict]:
+    def search_file(self, pattern: str, limit: int = 20) -> List[Dict]:
         """Search for files by path pattern.
 
         Args:
@@ -269,21 +270,23 @@ class CodeSearcher:
         """
         results = []
 
-        for file_path, file_info in self.code_map.get('files', {}).items():
+        for file_path, file_info in self.code_map.get("files", {}).items():
             if re.search(pattern, file_path, re.IGNORECASE):
                 symbols_summary = {}
-                for sym in file_info.get('symbols', []):
-                    sym_type = sym['type']
+                for sym in file_info.get("symbols", []):
+                    sym_type = sym["type"]
                     symbols_summary[sym_type] = symbols_summary.get(sym_type, 0) + 1
 
-                results.append({
-                    'file': file_path,
-                    'hash': file_info.get('hash', ''),
-                    'symbols': symbols_summary,
-                    'total_symbols': len(file_info.get('symbols', []))
-                })
+                results.append(
+                    {
+                        "file": file_path,
+                        "hash": file_info.get("hash", ""),
+                        "symbols": symbols_summary,
+                        "total_symbols": len(file_info.get("symbols", [])),
+                    }
+                )
 
-        results.sort(key=lambda x: x['file'])
+        results.sort(key=lambda x: x["file"])
         return results[:limit]
 
     def get_file_structure(self, file_path: str) -> Optional[Dict]:
@@ -302,10 +305,10 @@ class CodeSearcher:
             >>> print(list(structure['classes'].keys()))
             ['User', 'UserProfile']
         """
-        file_info = self.code_map.get('files', {}).get(file_path)
+        file_info = self.code_map.get("files", {}).get(file_path)
         if not file_info:
             # Try partial match
-            for path, info in self.code_map.get('files', {}).items():
+            for path, info in self.code_map.get("files", {}).items():
                 if file_path in path:
                     file_info = info
                     file_path = path
@@ -318,48 +321,44 @@ class CodeSearcher:
         functions = []
         other = []
 
-        for sym in file_info.get('symbols', []):
-            if sym['type'] == 'class':
-                classes[sym['name']] = {
-                    'lines': sym['lines'],
-                    'signature': sym.get('signature'),
-                    'docstring': sym.get('docstring'),
-                    'methods': []
+        for sym in file_info.get("symbols", []):
+            if sym["type"] == "class":
+                classes[sym["name"]] = {
+                    "lines": sym["lines"],
+                    "signature": sym.get("signature"),
+                    "docstring": sym.get("docstring"),
+                    "methods": [],
                 }
-            elif sym['type'] == 'method' and sym.get('parent'):
-                if sym['parent'] in classes:
-                    classes[sym['parent']]['methods'].append({
-                        'name': sym['name'],
-                        'lines': sym['lines'],
-                        'signature': sym.get('signature')
-                    })
-            elif sym['type'] == 'function':
-                functions.append({
-                    'name': sym['name'],
-                    'lines': sym['lines'],
-                    'signature': sym.get('signature'),
-                    'docstring': sym.get('docstring')
-                })
+            elif sym["type"] == "method" and sym.get("parent"):
+                if sym["parent"] in classes:
+                    classes[sym["parent"]]["methods"].append(
+                        {
+                            "name": sym["name"],
+                            "lines": sym["lines"],
+                            "signature": sym.get("signature"),
+                        }
+                    )
+            elif sym["type"] == "function":
+                functions.append(
+                    {
+                        "name": sym["name"],
+                        "lines": sym["lines"],
+                        "signature": sym.get("signature"),
+                        "docstring": sym.get("docstring"),
+                    }
+                )
             else:
-                other.append({
-                    'name': sym['name'],
-                    'type': sym['type'],
-                    'lines': sym['lines']
-                })
+                other.append({"name": sym["name"], "type": sym["type"], "lines": sym["lines"]})
 
         return {
-            'file': file_path,
-            'hash': file_info.get('hash', ''),
-            'classes': classes,
-            'functions': functions,
-            'other': other if other else None
+            "file": file_path,
+            "hash": file_info.get("hash", ""),
+            "classes": classes,
+            "functions": functions,
+            "other": other if other else None,
         }
 
-    def find_dependencies(
-        self,
-        symbol_name: str,
-        file_path: Optional[str] = None
-    ) -> Dict:
+    def find_dependencies(self, symbol_name: str, file_path: Optional[str] = None) -> Dict:
         """Find what a symbol depends on and what depends on it.
 
         Args:
@@ -380,32 +379,28 @@ class CodeSearcher:
         target_file = None
         target_lines = None
 
-        for fpath, file_info in self.code_map.get('files', {}).items():
+        for fpath, file_info in self.code_map.get("files", {}).items():
             if file_path and file_path not in fpath:
                 continue
 
-            for sym in file_info.get('symbols', []):
-                if sym['name'].lower() == symbol_name.lower():
+            for sym in file_info.get("symbols", []):
+                if sym["name"].lower() == symbol_name.lower():
                     target_file = fpath
-                    target_lines = sym['lines']
-                    if sym.get('deps'):
-                        deps_of = sym['deps']
+                    target_lines = sym["lines"]
+                    if sym.get("deps"):
+                        deps_of = sym["deps"]
                     break
 
-            for sym in file_info.get('symbols', []):
-                if sym.get('deps') and symbol_name in sym['deps']:
-                    depended_by.append({
-                        'name': sym['name'],
-                        'file': fpath,
-                        'lines': sym['lines']
-                    })
+            for sym in file_info.get("symbols", []):
+                if sym.get("deps") and symbol_name in sym["deps"]:
+                    depended_by.append({"name": sym["name"], "file": fpath, "lines": sym["lines"]})
 
         return {
-            'symbol': symbol_name,
-            'file': target_file,
-            'lines': target_lines,
-            'calls': deps_of,
-            'called_by': depended_by
+            "symbol": symbol_name,
+            "file": target_file,
+            "lines": target_lines,
+            "calls": deps_of,
+            "called_by": depended_by,
         }
 
     def get_stats(self) -> Dict:
@@ -419,27 +414,24 @@ class CodeSearcher:
             >>> stats = searcher.get_stats()
             >>> print(f"Total: {stats['total_symbols']} symbols in {stats['files']} files")
         """
-        stats = self.code_map.get('stats', {})
+        stats = self.code_map.get("stats", {})
 
         type_counts = {}
-        for file_info in self.code_map.get('files', {}).values():
-            for sym in file_info.get('symbols', []):
-                sym_type = sym['type']
+        for file_info in self.code_map.get("files", {}).values():
+            for sym in file_info.get("symbols", []):
+                sym_type = sym["type"]
                 type_counts[sym_type] = type_counts.get(sym_type, 0) + 1
 
         return {
-            'root': self.code_map.get('root'),
-            'generated_at': self.code_map.get('generated_at'),
-            'files': stats.get('files_processed', len(self.code_map.get('files', {}))),
-            'total_symbols': stats.get('symbols_found', 0),
-            'by_type': type_counts
+            "root": self.code_map.get("root"),
+            "generated_at": self.code_map.get("generated_at"),
+            "files": stats.get("files_processed", len(self.code_map.get("files", {}))),
+            "total_symbols": stats.get("symbols_found", 0),
+            "by_type": type_counts,
         }
 
     def list_by_type(
-        self,
-        symbol_type: str,
-        file_pattern: Optional[str] = None,
-        limit: int = 100
+        self, symbol_type: str, file_pattern: Optional[str] = None, limit: int = 100
     ) -> List[SearchResult]:
         """List all symbols of a specific type.
 
@@ -458,24 +450,26 @@ class CodeSearcher:
         """
         results = []
 
-        for file_path, file_info in self.code_map.get('files', {}).items():
+        for file_path, file_info in self.code_map.get("files", {}).items():
             if file_pattern and not re.search(file_pattern, file_path, re.IGNORECASE):
                 continue
 
-            for sym in file_info.get('symbols', []):
-                if sym['type'] != symbol_type:
+            for sym in file_info.get("symbols", []):
+                if sym["type"] != symbol_type:
                     continue
 
-                results.append(SearchResult(
-                    name=sym['name'],
-                    type=sym['type'],
-                    file=file_path,
-                    lines=sym['lines'],
-                    signature=sym.get('signature'),
-                    docstring=sym.get('docstring'),
-                    parent=sym.get('parent'),
-                    score=1.0
-                ))
+                results.append(
+                    SearchResult(
+                        name=sym["name"],
+                        type=sym["type"],
+                        file=file_path,
+                        lines=sym["lines"],
+                        signature=sym.get("signature"),
+                        docstring=sym.get("docstring"),
+                        parent=sym.get("parent"),
+                        score=1.0,
+                    )
+                )
 
                 if len(results) >= limit:
                     break
@@ -502,79 +496,43 @@ def main():
         $ code-search --structure src/api.py --pretty
     """
     parser = argparse.ArgumentParser(
-        description='Search through a code map for symbols and files',
-        epilog='Example: code-search "payment" --type function'
+        description="Search through a code map for symbols and files",
+        epilog='Example: code-search "payment" --type function',
+    )
+    parser.add_argument("query", nargs="?", help="Search query (symbol name, file pattern, etc.)")
+    parser.add_argument(
+        "-m",
+        "--map",
+        default=".codemap.json",
+        help="Path to code map file (default: .codemap.json)",
     )
     parser.add_argument(
-        'query',
-        nargs='?',
-        help='Search query (symbol name, file pattern, etc.)'
+        "-t",
+        "--type",
+        choices=["function", "class", "method", "interface", "struct", "trait", "enum"],
+        help="Filter by symbol type",
     )
-    parser.add_argument(
-        '-m', '--map',
-        default='.codemap.json',
-        help='Path to code map file (default: .codemap.json)'
-    )
-    parser.add_argument(
-        '-t', '--type',
-        choices=['function', 'class', 'method', 'interface', 'struct', 'trait', 'enum'],
-        help='Filter by symbol type'
-    )
-    parser.add_argument(
-        '-f', '--file',
-        help='Filter by file path pattern'
-    )
-    parser.add_argument(
-        '--files',
-        action='store_true',
-        help='Search for files instead of symbols'
-    )
-    parser.add_argument(
-        '--structure',
-        help='Show structure of a specific file'
-    )
-    parser.add_argument(
-        '--deps',
-        help='Show dependencies of a symbol'
-    )
-    parser.add_argument(
-        '--stats',
-        action='store_true',
-        help='Show codebase statistics'
-    )
-    parser.add_argument(
-        '-l', '--limit',
-        type=int,
-        default=10,
-        help='Maximum results (default: 10)'
-    )
-    parser.add_argument(
-        '--no-fuzzy',
-        action='store_true',
-        help='Disable fuzzy matching'
-    )
-    parser.add_argument(
-        '--pretty',
-        action='store_true',
-        help='Pretty-print JSON output'
-    )
-    parser.add_argument(
-        '-v', '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
-    )
+    parser.add_argument("-f", "--file", help="Filter by file path pattern")
+    parser.add_argument("--files", action="store_true", help="Search for files instead of symbols")
+    parser.add_argument("--structure", help="Show structure of a specific file")
+    parser.add_argument("--deps", help="Show dependencies of a symbol")
+    parser.add_argument("--stats", action="store_true", help="Show codebase statistics")
+    parser.add_argument("-l", "--limit", type=int, default=10, help="Maximum results (default: 10)")
+    parser.add_argument("--no-fuzzy", action="store_true", help="Disable fuzzy matching")
+    parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
 
     # Find map file
     map_path = args.map
     if not os.path.isabs(map_path) and not os.path.exists(map_path):
-        cwd_map = os.path.join(os.getcwd(), '.codemap.json')
+        cwd_map = os.path.join(os.getcwd(), ".codemap.json")
         if os.path.exists(cwd_map):
             map_path = cwd_map
 
     if not os.path.exists(map_path):
-        print(json.dumps({'error': f'Code map not found: {map_path}'}))
+        print(json.dumps({"error": f"Code map not found: {map_path}"}))
         sys.exit(1)
 
     searcher = CodeSearcher(map_path)
@@ -585,12 +543,12 @@ def main():
     elif args.structure:
         result = searcher.get_file_structure(args.structure)
         if not result:
-            result = {'error': f'File not found: {args.structure}'}
+            result = {"error": f"File not found: {args.structure}"}
     elif args.deps:
         result = searcher.find_dependencies(args.deps, args.file)
     elif args.files:
         if not args.query:
-            result = {'error': 'Query required for file search'}
+            result = {"error": "Query required for file search"}
         else:
             result = searcher.search_file(args.query, args.limit)
     elif args.query:
@@ -599,19 +557,17 @@ def main():
             symbol_type=args.type,
             file_pattern=args.file,
             limit=args.limit,
-            fuzzy=not args.no_fuzzy
+            fuzzy=not args.no_fuzzy,
         )
         result = [r.to_dict() for r in results]
     elif args.type:
         # List all symbols of specified type (no query needed)
-        results = searcher.list_by_type(
-            args.type,
-            file_pattern=args.file,
-            limit=args.limit
-        )
+        results = searcher.list_by_type(args.type, file_pattern=args.file, limit=args.limit)
         result = [r.to_dict() for r in results]
     else:
-        result = {'error': 'No query provided. Use --help for usage or --type to list all symbols of a type.'}
+        result = {
+            "error": "No query provided. Use --help for usage or --type to list all symbols of a type."
+        }
 
     # Output
     if args.pretty:
@@ -620,5 +576,5 @@ def main():
         print(json.dumps(result))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

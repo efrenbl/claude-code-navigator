@@ -20,40 +20,60 @@ Attributes:
     DEFAULT_IGNORE_PATTERNS: List of patterns to ignore when scanning.
 """
 
+import argparse
 import ast
+import fnmatch
+import hashlib
 import json
 import os
 import sys
-import hashlib
-from pathlib import Path
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
-import argparse
-import fnmatch
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 __version__ = "1.0.1"
 
 # Supported languages and their extensions
 LANGUAGE_EXTENSIONS = {
-    'python': ['.py'],
-    'javascript': ['.js', '.jsx', '.mjs'],
-    'typescript': ['.ts', '.tsx'],
-    'java': ['.java'],
-    'go': ['.go'],
-    'rust': ['.rs'],
-    'c': ['.c', '.h'],
-    'cpp': ['.cpp', '.hpp', '.cc', '.hh', '.cxx'],
-    'ruby': ['.rb'],
-    'php': ['.php'],
+    "python": [".py"],
+    "javascript": [".js", ".jsx", ".mjs"],
+    "typescript": [".ts", ".tsx"],
+    "java": [".java"],
+    "go": [".go"],
+    "rust": [".rs"],
+    "c": [".c", ".h"],
+    "cpp": [".cpp", ".hpp", ".cc", ".hh", ".cxx"],
+    "ruby": [".rb"],
+    "php": [".php"],
 }
 
 DEFAULT_IGNORE_PATTERNS = [
-    'node_modules', '__pycache__', '.git', '.svn', '.hg',
-    'venv', 'env', '.env', 'dist', 'build', '.next',
-    'coverage', '.nyc_output', '*.min.js', '*.bundle.js',
-    '.tox', 'eggs', '*.egg-info', '.pytest_cache',
-    'vendor', 'target', 'bin', 'obj', '.idea', '.vscode'
+    "node_modules",
+    "__pycache__",
+    ".git",
+    ".svn",
+    ".hg",
+    "venv",
+    "env",
+    ".env",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    ".nyc_output",
+    "*.min.js",
+    "*.bundle.js",
+    ".tox",
+    "eggs",
+    "*.egg-info",
+    ".pytest_cache",
+    "vendor",
+    "target",
+    "bin",
+    "obj",
+    ".idea",
+    ".vscode",
 ]
 
 
@@ -83,6 +103,7 @@ class Symbol:
         ...     signature='def process_payment(user_id: int, amount: Decimal)'
         ... )
     """
+
     name: str
     type: str
     file_path: str
@@ -137,7 +158,7 @@ class PythonAnalyzer(ast.NodeVisitor):
         """
         self.file_path = file_path
         self.source = source
-        self.lines = source.split('\n')
+        self.lines = source.split("\n")
         self.symbols: List[Symbol] = []
         self.current_class: Optional[str] = None
         self.imports: List[str] = []
@@ -151,9 +172,9 @@ class PythonAnalyzer(ast.NodeVisitor):
         Returns:
             The ending line number of the node.
         """
-        if hasattr(node, 'end_lineno') and node.end_lineno:
+        if hasattr(node, "end_lineno") and node.end_lineno:
             return node.end_lineno
-        if hasattr(node, 'body') and node.body:
+        if hasattr(node, "body") and node.body:
             last_node = node.body[-1]
             return self.get_line_end(last_node)
         return node.lineno
@@ -224,9 +245,9 @@ class PythonAnalyzer(ast.NodeVisitor):
         """
         doc = ast.get_docstring(node)
         if doc:
-            lines = doc.split('\n')
+            lines = doc.split("\n")
             if len(lines) > 3:
-                return '\n'.join(lines[:3]) + '...'
+                return "\n".join(lines[:3]) + "..."
             return doc
         return None
 
@@ -238,7 +259,7 @@ class PythonAnalyzer(ast.NodeVisitor):
 
     def visit_ImportFrom(self, node):
         """Visit a from...import statement."""
-        module = node.module or ''
+        module = node.module or ""
         for alias in node.names:
             self.imports.append(f"{module}.{alias.name}")
         self.generic_visit(node)
@@ -258,13 +279,13 @@ class PythonAnalyzer(ast.NodeVisitor):
 
         symbol = Symbol(
             name=node.name,
-            type='class',
+            type="class",
             file_path=self.file_path,
             line_start=node.lineno,
             line_end=self.get_line_end(node),
             signature=signature,
             docstring=self.get_docstring(node),
-            decorators=self.get_decorators(node)
+            decorators=self.get_decorators(node),
         )
         self.symbols.append(symbol)
 
@@ -287,7 +308,7 @@ class PythonAnalyzer(ast.NodeVisitor):
         Args:
             node: A FunctionDef or AsyncFunctionDef AST node.
         """
-        symbol_type = 'method' if self.current_class else 'function'
+        symbol_type = "method" if self.current_class else "function"
 
         calls = []
         for child in ast.walk(node):
@@ -307,7 +328,7 @@ class PythonAnalyzer(ast.NodeVisitor):
             docstring=self.get_docstring(node),
             parent=self.current_class,
             dependencies=list(set(calls)),
-            decorators=self.get_decorators(node)
+            decorators=self.get_decorators(node),
         )
         self.symbols.append(symbol)
         self.generic_visit(node)
@@ -349,35 +370,35 @@ class GenericAnalyzer:
     """
 
     PATTERNS = {
-        'javascript': {
-            'function': r'(?:async\s+)?function\s+(\w+)\s*\([^)]*\)',
-            'arrow': r'(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>',
-            'class': r'class\s+(\w+)(?:\s+extends\s+\w+)?',
-            'method': r'(?:async\s+)?(\w+)\s*\([^)]*\)\s*{',
+        "javascript": {
+            "function": r"(?:async\s+)?function\s+(\w+)\s*\([^)]*\)",
+            "arrow": r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>",
+            "class": r"class\s+(\w+)(?:\s+extends\s+\w+)?",
+            "method": r"(?:async\s+)?(\w+)\s*\([^)]*\)\s*{",
         },
-        'typescript': {
-            'function': r'(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)',
-            'interface': r'interface\s+(\w+)',
-            'type': r'type\s+(\w+)\s*=',
-            'class': r'class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+\w+)?',
+        "typescript": {
+            "function": r"(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)",
+            "interface": r"interface\s+(\w+)",
+            "type": r"type\s+(\w+)\s*=",
+            "class": r"class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+\w+)?",
         },
-        'java': {
-            'class': r'(?:public|private|protected)?\s*class\s+(\w+)',
-            'interface': r'interface\s+(\w+)',
-            'method': r'(?:public|private|protected)?\s*(?:static\s+)?(?:\w+(?:<[^>]*>)?)\s+(\w+)\s*\([^)]*\)',
+        "java": {
+            "class": r"(?:public|private|protected)?\s*class\s+(\w+)",
+            "interface": r"interface\s+(\w+)",
+            "method": r"(?:public|private|protected)?\s*(?:static\s+)?(?:\w+(?:<[^>]*>)?)\s+(\w+)\s*\([^)]*\)",
         },
-        'go': {
-            'function': r'func\s+(\w+)\s*\([^)]*\)',
-            'method': r'func\s+\([^)]+\)\s+(\w+)\s*\([^)]*\)',
-            'struct': r'type\s+(\w+)\s+struct',
-            'interface': r'type\s+(\w+)\s+interface',
+        "go": {
+            "function": r"func\s+(\w+)\s*\([^)]*\)",
+            "method": r"func\s+\([^)]+\)\s+(\w+)\s*\([^)]*\)",
+            "struct": r"type\s+(\w+)\s+struct",
+            "interface": r"type\s+(\w+)\s+interface",
         },
-        'rust': {
-            'function': r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)',
-            'struct': r'(?:pub\s+)?struct\s+(\w+)',
-            'impl': r'impl(?:<[^>]*>)?\s+(\w+)',
-            'trait': r'(?:pub\s+)?trait\s+(\w+)',
-            'enum': r'(?:pub\s+)?enum\s+(\w+)',
+        "rust": {
+            "function": r"(?:pub\s+)?(?:async\s+)?fn\s+(\w+)",
+            "struct": r"(?:pub\s+)?struct\s+(\w+)",
+            "impl": r"impl(?:<[^>]*>)?\s+(\w+)",
+            "trait": r"(?:pub\s+)?trait\s+(\w+)",
+            "enum": r"(?:pub\s+)?enum\s+(\w+)",
         },
     }
 
@@ -392,7 +413,7 @@ class GenericAnalyzer:
         self.file_path = file_path
         self.source = source
         self.language = language
-        self.lines = source.split('\n')
+        self.lines = source.split("\n")
 
     def analyze(self) -> List[Symbol]:
         """Analyze the file using regex patterns.
@@ -401,20 +422,21 @@ class GenericAnalyzer:
             List of Symbol objects found in the file.
         """
         import re
+
         symbols = []
         patterns = self.PATTERNS.get(self.language, {})
 
         for symbol_type, pattern in patterns.items():
             for match in re.finditer(pattern, self.source, re.MULTILINE):
                 name = match.group(1)
-                line_num = self.source[:match.start()].count('\n') + 1
+                line_num = self.source[: match.start()].count("\n") + 1
 
                 line_end = line_num
                 brace_count = 0
                 started = False
-                for i, line in enumerate(self.lines[line_num-1:], start=line_num):
-                    brace_count += line.count('{') - line.count('}')
-                    if '{' in line:
+                for i, line in enumerate(self.lines[line_num - 1 :], start=line_num):
+                    brace_count += line.count("{") - line.count("}")
+                    if "{" in line:
                         started = True
                     if started and brace_count <= 0:
                         line_end = i
@@ -423,14 +445,16 @@ class GenericAnalyzer:
                         line_end = i
                         break
 
-                symbols.append(Symbol(
-                    name=name,
-                    type=symbol_type,
-                    file_path=self.file_path,
-                    line_start=line_num,
-                    line_end=line_end,
-                    signature=match.group(0).strip()[:100]
-                ))
+                symbols.append(
+                    Symbol(
+                        name=name,
+                        type=symbol_type,
+                        file_path=self.file_path,
+                        line_start=line_num,
+                        line_end=line_end,
+                        signature=match.group(0).strip()[:100],
+                    )
+                )
 
         return symbols
 
@@ -471,11 +495,7 @@ class CodeMapper:
         self.ignore_patterns = ignore_patterns or DEFAULT_IGNORE_PATTERNS
         self.symbols: List[Symbol] = []
         self.file_hashes: Dict[str, str] = {}
-        self.stats = {
-            'files_processed': 0,
-            'symbols_found': 0,
-            'errors': 0
-        }
+        self.stats = {"files_processed": 0, "symbols_found": 0, "errors": 0}
 
     def should_ignore(self, path: Path) -> bool:
         """Check if a path should be ignored during scanning.
@@ -532,14 +552,14 @@ class CodeMapper:
             List of Symbol objects found in the file.
         """
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
             rel_path = str(file_path.relative_to(self.root_path))
             self.file_hashes[rel_path] = self.hash_file(content)
 
             language = self.get_language(file_path)
-            if language == 'python':
+            if language == "python":
                 analyzer = PythonAnalyzer(rel_path, content)
             elif language:
                 analyzer = GenericAnalyzer(rel_path, content, language)
@@ -549,7 +569,7 @@ class CodeMapper:
             return analyzer.analyze()
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             print(f"Error analyzing {file_path}: {e}", file=sys.stderr)
             return []
 
@@ -579,9 +599,9 @@ class CodeMapper:
                 if language:
                     symbols = self.analyze_file(file_path)
                     self.symbols.extend(symbols)
-                    self.stats['files_processed'] += 1
+                    self.stats["files_processed"] += 1
 
-        self.stats['symbols_found'] = len(self.symbols)
+        self.stats["symbols_found"] = len(self.symbols)
         return self.generate_map()
 
     def generate_map(self) -> Dict[str, Any]:
@@ -594,39 +614,43 @@ class CodeMapper:
         for symbol in self.symbols:
             if symbol.file_path not in files_map:
                 files_map[symbol.file_path] = {
-                    'hash': self.file_hashes.get(symbol.file_path, ''),
-                    'symbols': []
+                    "hash": self.file_hashes.get(symbol.file_path, ""),
+                    "symbols": [],
                 }
-            files_map[symbol.file_path]['symbols'].append({
-                'name': symbol.name,
-                'type': symbol.type,
-                'lines': [symbol.line_start, symbol.line_end],
-                'signature': symbol.signature,
-                'docstring': symbol.docstring,
-                'parent': symbol.parent,
-                'deps': symbol.dependencies[:10] if symbol.dependencies else None,
-                'decorators': symbol.decorators if symbol.decorators else None
-            })
+            files_map[symbol.file_path]["symbols"].append(
+                {
+                    "name": symbol.name,
+                    "type": symbol.type,
+                    "lines": [symbol.line_start, symbol.line_end],
+                    "signature": symbol.signature,
+                    "docstring": symbol.docstring,
+                    "parent": symbol.parent,
+                    "deps": symbol.dependencies[:10] if symbol.dependencies else None,
+                    "decorators": symbol.decorators if symbol.decorators else None,
+                }
+            )
 
         symbol_index = {}
         for symbol in self.symbols:
             key = symbol.name.lower()
             if key not in symbol_index:
                 symbol_index[key] = []
-            symbol_index[key].append({
-                'file': symbol.file_path,
-                'type': symbol.type,
-                'lines': [symbol.line_start, symbol.line_end],
-                'parent': symbol.parent
-            })
+            symbol_index[key].append(
+                {
+                    "file": symbol.file_path,
+                    "type": symbol.type,
+                    "lines": [symbol.line_start, symbol.line_end],
+                    "parent": symbol.parent,
+                }
+            )
 
         return {
-            'version': '1.0',
-            'root': str(self.root_path),
-            'generated_at': datetime.now().isoformat(),
-            'stats': self.stats,
-            'files': files_map,
-            'index': symbol_index
+            "version": "1.0",
+            "root": str(self.root_path),
+            "generated_at": datetime.now().isoformat(),
+            "stats": self.stats,
+            "files": files_map,
+            "index": symbol_index,
         }
 
 
@@ -640,33 +664,16 @@ def main():
         $ code-map /my/project -o .codemap.json --pretty
     """
     parser = argparse.ArgumentParser(
-        description='Generate a code map for token-efficient navigation',
-        epilog='Example: code-map /my/project -o .codemap.json --pretty'
+        description="Generate a code map for token-efficient navigation",
+        epilog="Example: code-map /my/project -o .codemap.json --pretty",
     )
+    parser.add_argument("path", help="Path to the codebase root directory")
     parser.add_argument(
-        'path',
-        help='Path to the codebase root directory'
+        "-o", "--output", default=".codemap.json", help="Output file path (default: .codemap.json)"
     )
-    parser.add_argument(
-        '-o', '--output',
-        default='.codemap.json',
-        help='Output file path (default: .codemap.json)'
-    )
-    parser.add_argument(
-        '-i', '--ignore',
-        nargs='*',
-        help='Additional patterns to ignore'
-    )
-    parser.add_argument(
-        '--pretty',
-        action='store_true',
-        help='Pretty-print JSON output'
-    )
-    parser.add_argument(
-        '-v', '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
-    )
+    parser.add_argument("-i", "--ignore", nargs="*", help="Additional patterns to ignore")
+    parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
 
@@ -681,21 +688,18 @@ def main():
     if not os.path.isabs(output_path):
         output_path = os.path.join(args.path, output_path)
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         if args.pretty:
             json.dump(code_map, f, indent=2)
         else:
-            json.dump(code_map, f, separators=(',', ':'))
+            json.dump(code_map, f, separators=(",", ":"))
 
     print(f"\n✓ Code map generated: {output_path}", file=sys.stderr)
     print(f"  Files processed: {code_map['stats']['files_processed']}", file=sys.stderr)
     print(f"  Symbols found: {code_map['stats']['symbols_found']}", file=sys.stderr)
 
-    print(json.dumps({
-        'output': output_path,
-        'stats': code_map['stats']
-    }))
+    print(json.dumps({"output": output_path, "stats": code_map["stats"]}))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

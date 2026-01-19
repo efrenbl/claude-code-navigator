@@ -48,7 +48,7 @@ __version__ = "1.0.1"
 __author__ = "Efren"
 __license__ = "MIT"
 
-from .code_mapper import CodeMapper, PythonAnalyzer, GenericAnalyzer, Symbol
+from .code_mapper import CodeMapper, GenericAnalyzer, PythonAnalyzer, Symbol
 from .code_search import CodeSearcher, SearchResult
 from .line_reader import LineReader
 

@@ -259,12 +259,8 @@ class TestFormatOutput:
         result = {
             "file": "test.py",
             "sections": [
-                {
-                    "lines": [{"num": 1, "content": "line 1", "in_range": True}]
-                },
-                {
-                    "lines": [{"num": 10, "content": "line 10", "in_range": True}]
-                },
+                {"lines": [{"num": 1, "content": "line 1", "in_range": True}]},
+                {"lines": [{"num": 10, "content": "line 10", "in_range": True}]},
             ],
         }
         output = format_output(result, "code")

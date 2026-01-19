@@ -17,13 +17,13 @@ Example:
         ...     print(f"{line['num']}: {line['content']}")
 """
 
-import json
-import sys
-import os
 import argparse
+import json
+import os
+import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
-import re
 
 __version__ = "1.0.1"
 
@@ -71,11 +71,7 @@ class LineReader:
         return path.resolve()
 
     def read_lines(
-        self,
-        file_path: str,
-        start: int,
-        end: Optional[int] = None,
-        context: int = 0
+        self, file_path: str, start: int, end: Optional[int] = None, context: int = 0
     ) -> Dict:
         """Read specific lines from a file.
 
@@ -100,13 +96,13 @@ class LineReader:
         path = self._resolve_path(file_path)
 
         if not path.exists():
-            return {'error': f'File not found: {file_path}'}
+            return {"error": f"File not found: {file_path}"}
 
         try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
         except Exception as e:
-            return {'error': f'Failed to read file: {e}'}
+            return {"error": f"Failed to read file: {e}"}
 
         total_lines = len(all_lines)
         end = end or start
@@ -114,30 +110,24 @@ class LineReader:
         actual_start = max(1, start - context)
         actual_end = min(total_lines, end + context)
 
-        extracted = all_lines[actual_start - 1:actual_end]
+        extracted = all_lines[actual_start - 1 : actual_end]
 
         lines_with_numbers = []
         for i, line in enumerate(extracted, start=actual_start):
-            lines_with_numbers.append({
-                'num': i,
-                'content': line.rstrip('\n\r'),
-                'in_range': start <= i <= end
-            })
+            lines_with_numbers.append(
+                {"num": i, "content": line.rstrip("\n\r"), "in_range": start <= i <= end}
+            )
 
         return {
-            'file': file_path,
-            'requested': [start, end],
-            'actual': [actual_start, actual_end],
-            'total_lines': total_lines,
-            'lines': lines_with_numbers
+            "file": file_path,
+            "requested": [start, end],
+            "actual": [actual_start, actual_end],
+            "total_lines": total_lines,
+            "lines": lines_with_numbers,
         }
 
     def read_ranges(
-        self,
-        file_path: str,
-        ranges: List[Tuple[int, int]],
-        context: int = 0,
-        collapse_gap: int = 5
+        self, file_path: str, ranges: List[Tuple[int, int]], context: int = 0, collapse_gap: int = 5
     ) -> Dict:
         """Read multiple line ranges from a file efficiently.
 
@@ -164,13 +154,13 @@ class LineReader:
         path = self._resolve_path(file_path)
 
         if not path.exists():
-            return {'error': f'File not found: {file_path}'}
+            return {"error": f"File not found: {file_path}"}
 
         try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
         except Exception as e:
-            return {'error': f'Failed to read file: {e}'}
+            return {"error": f"Failed to read file: {e}"}
 
         total_lines = len(all_lines)
 
@@ -201,23 +191,23 @@ class LineReader:
                 if i < len(all_lines):
                     line_num = i + 1
                     in_range = any(os <= line_num <= oe for os, oe in original_ranges)
-                    lines_with_numbers.append({
-                        'num': line_num,
-                        'content': all_lines[i].rstrip('\n\r'),
-                        'in_range': in_range
-                    })
+                    lines_with_numbers.append(
+                        {
+                            "num": line_num,
+                            "content": all_lines[i].rstrip("\n\r"),
+                            "in_range": in_range,
+                        }
+                    )
 
-            sections.append({
-                'range': [actual_start, actual_end],
-                'original_ranges': original_ranges,
-                'lines': lines_with_numbers
-            })
+            sections.append(
+                {
+                    "range": [actual_start, actual_end],
+                    "original_ranges": original_ranges,
+                    "lines": lines_with_numbers,
+                }
+            )
 
-        return {
-            'file': file_path,
-            'total_lines': total_lines,
-            'sections': sections
-        }
+        return {"file": file_path, "total_lines": total_lines, "sections": sections}
 
     def read_symbol(
         self,
@@ -225,7 +215,7 @@ class LineReader:
         start: int,
         end: int,
         include_context: bool = True,
-        max_lines: int = 100
+        max_lines: int = 100,
     ) -> Dict:
         """Read a symbol (function, class, etc.) with smart truncation.
 
@@ -256,13 +246,13 @@ class LineReader:
         path = self._resolve_path(file_path)
 
         if not path.exists():
-            return {'error': f'File not found: {file_path}'}
+            return {"error": f"File not found: {file_path}"}
 
         try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
         except Exception as e:
-            return {'error': f'Failed to read file: {e}'}
+            return {"error": f"Failed to read file: {e}"}
 
         total_lines = len(all_lines)
         start = max(1, start)
@@ -277,18 +267,15 @@ class LineReader:
             lines = []
             for i in range(context_start - 1, context_end):
                 if i < len(all_lines):
-                    lines.append({
-                        'num': i + 1,
-                        'content': all_lines[i].rstrip('\n\r'),
-                        'in_range': start <= (i + 1) <= end
-                    })
+                    lines.append(
+                        {
+                            "num": i + 1,
+                            "content": all_lines[i].rstrip("\n\r"),
+                            "in_range": start <= (i + 1) <= end,
+                        }
+                    )
 
-            return {
-                'file': file_path,
-                'range': [start, end],
-                'truncated': False,
-                'lines': lines
-            }
+            return {"file": file_path, "range": [start, end], "truncated": False, "lines": lines}
         else:
             # Truncate: show beginning and end
             head_lines = max_lines // 2
@@ -299,61 +286,47 @@ class LineReader:
             # Context before
             for i in range(context_start - 1, start - 1):
                 if i < len(all_lines):
-                    lines.append({
-                        'num': i + 1,
-                        'content': all_lines[i].rstrip('\n\r'),
-                        'in_range': False
-                    })
+                    lines.append(
+                        {"num": i + 1, "content": all_lines[i].rstrip("\n\r"), "in_range": False}
+                    )
 
             # Head of symbol
             for i in range(start - 1, start - 1 + head_lines):
                 if i < len(all_lines):
-                    lines.append({
-                        'num': i + 1,
-                        'content': all_lines[i].rstrip('\n\r'),
-                        'in_range': True
-                    })
+                    lines.append(
+                        {"num": i + 1, "content": all_lines[i].rstrip("\n\r"), "in_range": True}
+                    )
 
             # Ellipsis marker
             skipped = symbol_length - head_lines - tail_lines
-            lines.append({
-                'num': None,
-                'content': f'... ({skipped} lines omitted) ...',
-                'in_range': True
-            })
+            lines.append(
+                {"num": None, "content": f"... ({skipped} lines omitted) ...", "in_range": True}
+            )
 
             # Tail of symbol
             for i in range(end - tail_lines, end):
                 if i < len(all_lines) and i >= 0:
-                    lines.append({
-                        'num': i + 1,
-                        'content': all_lines[i].rstrip('\n\r'),
-                        'in_range': True
-                    })
+                    lines.append(
+                        {"num": i + 1, "content": all_lines[i].rstrip("\n\r"), "in_range": True}
+                    )
 
             # Context after
             for i in range(end, context_end):
                 if i < len(all_lines):
-                    lines.append({
-                        'num': i + 1,
-                        'content': all_lines[i].rstrip('\n\r'),
-                        'in_range': False
-                    })
+                    lines.append(
+                        {"num": i + 1, "content": all_lines[i].rstrip("\n\r"), "in_range": False}
+                    )
 
             return {
-                'file': file_path,
-                'range': [start, end],
-                'truncated': True,
-                'skipped_lines': skipped,
-                'lines': lines
+                "file": file_path,
+                "range": [start, end],
+                "truncated": True,
+                "skipped_lines": skipped,
+                "lines": lines,
             }
 
     def search_in_file(
-        self,
-        file_path: str,
-        pattern: str,
-        context: int = 2,
-        max_matches: int = 10
+        self, file_path: str, pattern: str, context: int = 2, max_matches: int = 10
     ) -> Dict:
         """Search for a pattern in a file and return matching lines with context.
 
@@ -377,13 +350,13 @@ class LineReader:
         path = self._resolve_path(file_path)
 
         if not path.exists():
-            return {'error': f'File not found: {file_path}'}
+            return {"error": f"File not found: {file_path}"}
 
         try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
         except Exception as e:
-            return {'error': f'Failed to read file: {e}'}
+            return {"error": f"Failed to read file: {e}"}
 
         # Find matches
         matches = []
@@ -399,23 +372,18 @@ class LineReader:
                     break
 
         if not matches:
-            return {
-                'file': file_path,
-                'pattern': pattern,
-                'matches': 0,
-                'sections': []
-            }
+            return {"file": file_path, "pattern": pattern, "matches": 0, "sections": []}
 
         # Convert matches to ranges with context
         ranges = [(m, m) for m in matches]
         result = self.read_ranges(file_path, ranges, context=context)
-        result['pattern'] = pattern
-        result['matches'] = len(matches)
+        result["pattern"] = pattern
+        result["matches"] = len(matches)
 
         return result
 
 
-def format_output(result: Dict, style: str = 'json') -> str:
+def format_output(result: Dict, style: str = "json") -> str:
     """Format the output for display.
 
     Args:
@@ -425,41 +393,41 @@ def format_output(result: Dict, style: str = 'json') -> str:
     Returns:
         Formatted string representation.
     """
-    if style == 'json':
+    if style == "json":
         return json.dumps(result, indent=2)
 
-    elif style == 'code':
-        if 'error' in result:
+    elif style == "code":
+        if "error" in result:
             return f"Error: {result['error']}"
 
         output = []
         output.append(f"# {result.get('file', 'Unknown file')}")
 
-        if 'lines' in result:
-            lines = result['lines']
+        if "lines" in result:
+            lines = result["lines"]
             for line in lines:
-                num = line.get('num')
-                content = line.get('content', '')
+                num = line.get("num")
+                content = line.get("content", "")
                 if num is None:
                     output.append(f"     {content}")
                 else:
-                    marker = '>' if line.get('in_range') else ' '
+                    marker = ">" if line.get("in_range") else " "
                     output.append(f"{marker}{num:4d} | {content}")
 
-        elif 'sections' in result:
-            for i, section in enumerate(result['sections']):
+        elif "sections" in result:
+            for i, section in enumerate(result["sections"]):
                 if i > 0:
                     output.append("...")
-                for line in section.get('lines', []):
-                    num = line.get('num')
-                    content = line.get('content', '')
+                for line in section.get("lines", []):
+                    num = line.get("num")
+                    content = line.get("content", "")
                     if num is None:
                         output.append(f"     {content}")
                     else:
-                        marker = '>' if line.get('in_range') else ' '
+                        marker = ">" if line.get("in_range") else " "
                         output.append(f"{marker}{num:4d} | {content}")
 
-        return '\n'.join(output)
+        return "\n".join(output)
 
     return json.dumps(result)
 
@@ -477,72 +445,44 @@ def main():
         $ code-read src/api.py --search "def process" -o code
     """
     parser = argparse.ArgumentParser(
-        description='Read specific lines from files for token-efficient code viewing',
-        epilog='Example: code-read src/api.py 45-60 -c 2 -o code'
+        description="Read specific lines from files for token-efficient code viewing",
+        epilog="Example: code-read src/api.py 45-60 -c 2 -o code",
+    )
+    parser.add_argument("file", help="Path to the file to read")
+    parser.add_argument("lines", nargs="?", help='Line range (e.g., "10", "10-20", "10,20,30-40")')
+    parser.add_argument("-r", "--root", help="Root directory for relative paths")
+    parser.add_argument(
+        "-c", "--context", type=int, default=0, help="Number of context lines (default: 0)"
+    )
+    parser.add_argument("-s", "--search", help="Search for pattern instead of line numbers")
+    parser.add_argument(
+        "--symbol", action="store_true", help="Read as symbol with smart truncation"
     )
     parser.add_argument(
-        'file',
-        help='Path to the file to read'
+        "--max-lines", type=int, default=100, help="Maximum lines before truncation (default: 100)"
     )
     parser.add_argument(
-        'lines',
-        nargs='?',
-        help='Line range (e.g., "10", "10-20", "10,20,30-40")'
+        "-o",
+        "--output",
+        choices=["json", "code"],
+        default="json",
+        help="Output format (default: json)",
     )
-    parser.add_argument(
-        '-r', '--root',
-        help='Root directory for relative paths'
-    )
-    parser.add_argument(
-        '-c', '--context',
-        type=int,
-        default=0,
-        help='Number of context lines (default: 0)'
-    )
-    parser.add_argument(
-        '-s', '--search',
-        help='Search for pattern instead of line numbers'
-    )
-    parser.add_argument(
-        '--symbol',
-        action='store_true',
-        help='Read as symbol with smart truncation'
-    )
-    parser.add_argument(
-        '--max-lines',
-        type=int,
-        default=100,
-        help='Maximum lines before truncation (default: 100)'
-    )
-    parser.add_argument(
-        '-o', '--output',
-        choices=['json', 'code'],
-        default='json',
-        help='Output format (default: json)'
-    )
-    parser.add_argument(
-        '-v', '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
-    )
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
 
     reader = LineReader(args.root)
 
     if args.search:
-        result = reader.search_in_file(
-            args.file,
-            args.search,
-            context=args.context
-        )
+        result = reader.search_in_file(args.file, args.search, context=args.context)
     elif args.lines:
         # Parse line specification
         ranges = []
-        for part in args.lines.split(','):
+        for part in args.lines.split(","):
             part = part.strip()
-            if '-' in part:
-                start, end = part.split('-', 1)
+            if "-" in part:
+                start, end = part.split("-", 1)
                 ranges.append((int(start), int(end)))
             else:
                 line = int(part)
@@ -554,37 +494,28 @@ def main():
                 ranges[0][0],
                 ranges[0][1],
                 include_context=args.context > 0,
-                max_lines=args.max_lines
+                max_lines=args.max_lines,
             )
         elif len(ranges) == 1:
-            result = reader.read_lines(
-                args.file,
-                ranges[0][0],
-                ranges[0][1],
-                context=args.context
-            )
+            result = reader.read_lines(args.file, ranges[0][0], ranges[0][1], context=args.context)
         else:
-            result = reader.read_ranges(
-                args.file,
-                ranges,
-                context=args.context
-            )
+            result = reader.read_ranges(args.file, ranges, context=args.context)
     else:
         # Default: show file info
         path = reader._resolve_path(args.file)
         if path.exists():
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
             result = {
-                'file': args.file,
-                'total_lines': len(lines),
-                'hint': 'Specify lines to read (e.g., "10-20") or use --search'
+                "file": args.file,
+                "total_lines": len(lines),
+                "hint": 'Specify lines to read (e.g., "10-20") or use --search',
             }
         else:
-            result = {'error': f'File not found: {args.file}'}
+            result = {"error": f"File not found: {args.file}"}
 
     print(format_output(result, args.output))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

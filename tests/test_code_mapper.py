@@ -8,12 +8,12 @@ from pathlib import Path
 import pytest
 
 from code_map_navigator.code_mapper import (
-    CodeMapper,
-    PythonAnalyzer,
-    GenericAnalyzer,
-    Symbol,
-    LANGUAGE_EXTENSIONS,
     DEFAULT_IGNORE_PATTERNS,
+    LANGUAGE_EXTENSIONS,
+    CodeMapper,
+    GenericAnalyzer,
+    PythonAnalyzer,
+    Symbol,
 )
 
 
@@ -54,12 +54,8 @@ class TestSymbol:
 
     def test_symbol_default_lists(self):
         """Test that mutable defaults are properly initialized."""
-        symbol1 = Symbol(
-            name="a", type="function", file_path="a.py", line_start=1, line_end=1
-        )
-        symbol2 = Symbol(
-            name="b", type="function", file_path="b.py", line_start=1, line_end=1
-        )
+        symbol1 = Symbol(name="a", type="function", file_path="a.py", line_start=1, line_end=1)
+        symbol2 = Symbol(name="b", type="function", file_path="b.py", line_start=1, line_end=1)
 
         # They should have separate lists
         symbol1.dependencies.append("test")
@@ -102,10 +98,10 @@ def greet(name: str, age: int = 0) -> str:
 
     def test_async_function(self):
         """Test detecting an async function."""
-        source = '''
+        source = """
 async def fetch(url: str) -> dict:
     return {}
-'''
+"""
         analyzer = PythonAnalyzer("test.py", source)
         symbols = analyzer.analyze()
 
@@ -140,10 +136,10 @@ class MyClass:
 
     def test_class_inheritance(self):
         """Test detecting class inheritance."""
-        source = '''
+        source = """
 class Derived(Base, Mixin):
     pass
-'''
+"""
         analyzer = PythonAnalyzer("test.py", source)
         symbols = analyzer.analyze()
 
@@ -153,12 +149,12 @@ class Derived(Base, Mixin):
 
     def test_decorated_function(self):
         """Test detecting decorators."""
-        source = '''
+        source = """
 @decorator
 @another_decorator
 def decorated():
     pass
-'''
+"""
         analyzer = PythonAnalyzer("test.py", source)
         symbols = analyzer.analyze()
 
@@ -168,12 +164,12 @@ def decorated():
 
     def test_dependency_tracking(self):
         """Test that function calls are tracked."""
-        source = '''
+        source = """
 def caller():
     result = helper()
     process(result)
     return result
-'''
+"""
         analyzer = PythonAnalyzer("test.py", source)
         symbols = analyzer.analyze()
 
@@ -215,11 +211,11 @@ class TestGenericAnalyzer:
 
     def test_javascript_function(self):
         """Test detecting JavaScript functions."""
-        source = '''
+        source = """
 function hello() {
     return "Hello!";
 }
-'''
+"""
         analyzer = GenericAnalyzer("test.js", source, "javascript")
         symbols = analyzer.analyze()
 
@@ -229,13 +225,13 @@ function hello() {
 
     def test_javascript_class(self):
         """Test detecting JavaScript classes."""
-        source = '''
+        source = """
 class MyClass extends Base {
     constructor() {
         this.value = 0;
     }
 }
-'''
+"""
         analyzer = GenericAnalyzer("test.js", source, "javascript")
         symbols = analyzer.analyze()
 

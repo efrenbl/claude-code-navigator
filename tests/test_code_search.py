@@ -99,16 +99,36 @@ def sample_codemap():
                 {"file": "src/api/handlers.py", "type": "class", "lines": [5, 50], "parent": None}
             ],
             "get": [
-                {"file": "src/api/handlers.py", "type": "method", "lines": [10, 25], "parent": "UserHandler"}
+                {
+                    "file": "src/api/handlers.py",
+                    "type": "method",
+                    "lines": [10, 25],
+                    "parent": "UserHandler",
+                }
             ],
             "post": [
-                {"file": "src/api/handlers.py", "type": "method", "lines": [30, 45], "parent": "UserHandler"}
+                {
+                    "file": "src/api/handlers.py",
+                    "type": "method",
+                    "lines": [30, 45],
+                    "parent": "UserHandler",
+                }
             ],
             "process_payment": [
-                {"file": "src/utils/helpers.py", "type": "function", "lines": [1, 30], "parent": None}
+                {
+                    "file": "src/utils/helpers.py",
+                    "type": "function",
+                    "lines": [1, 30],
+                    "parent": None,
+                }
             ],
             "validate": [
-                {"file": "src/utils/helpers.py", "type": "function", "lines": [35, 45], "parent": None}
+                {
+                    "file": "src/utils/helpers.py",
+                    "type": "function",
+                    "lines": [35, 45],
+                    "parent": None,
+                }
             ],
         },
     }

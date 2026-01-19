@@ -511,14 +511,12 @@ class CodeMapper:
         Returns:
             True if the path matches any ignore pattern.
         """
-        path_str = str(path)
-        name = path.name
+        parts = path.parts
 
         for pattern in self.ignore_patterns:
-            if fnmatch.fnmatch(name, pattern):
-                return True
-            if pattern in path_str:
-                return True
+            for part in parts:
+                if fnmatch.fnmatch(part, pattern):
+                    return True
         return False
 
     def get_language(self, file_path: Path) -> Optional[str]:

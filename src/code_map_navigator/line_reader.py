@@ -23,7 +23,9 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "1.0.1"
+from .colors import get_colors
+
+__version__ = "1.2.0"
 
 
 class LineReader:
@@ -381,25 +383,33 @@ class LineReader:
         return result
 
 
-def format_output(result: Dict, style: str = "json") -> str:
+def format_output(
+    result: Dict, style: str = "json", compact: bool = False, no_color: bool = False
+) -> str:
     """Format the output for display.
 
     Args:
         result: The result dict to format.
         style: Output style ('json' or 'code').
+        compact: If True, output compact JSON without indentation.
+        no_color: If True, disable colored output.
 
     Returns:
         Formatted string representation.
     """
     if style == "json":
+        if compact:
+            return json.dumps(result, separators=(",", ":"))
         return json.dumps(result, indent=2)
 
     elif style == "code":
+        c = get_colors(no_color=no_color)
+
         if "error" in result:
-            return f"Error: {result['error']}"
+            return c.error(f"Error: {result['error']}")
 
         output = []
-        output.append(f"# {result.get('file', 'Unknown file')}")
+        output.append(c.cyan(f"# {result.get('file', 'Unknown file')}"))
 
         if "lines" in result:
             lines = result["lines"]
@@ -407,23 +417,35 @@ def format_output(result: Dict, style: str = "json") -> str:
                 num = line.get("num")
                 content = line.get("content", "")
                 if num is None:
-                    output.append(f"     {content}")
+                    # Ellipsis/omitted lines
+                    output.append(c.dim(f"     {content}"))
                 else:
-                    marker = ">" if line.get("in_range") else " "
-                    output.append(f"{marker}{num:4d} | {content}")
+                    in_range = line.get("in_range")
+                    marker = c.green(">") if in_range else " "
+                    line_num = c.cyan(f"{num:4d}")
+                    if in_range:
+                        output.append(f"{marker}{line_num} | {content}")
+                    else:
+                        # Context lines (dimmed)
+                        output.append(f"{marker}{line_num} | {c.dim(content)}")
 
         elif "sections" in result:
             for i, section in enumerate(result["sections"]):
                 if i > 0:
-                    output.append("...")
+                    output.append(c.dim("..."))
                 for line in section.get("lines", []):
                     num = line.get("num")
                     content = line.get("content", "")
                     if num is None:
-                        output.append(f"     {content}")
+                        output.append(c.dim(f"     {content}"))
                     else:
-                        marker = ">" if line.get("in_range") else " "
-                        output.append(f"{marker}{num:4d} | {content}")
+                        in_range = line.get("in_range")
+                        marker = c.green(">") if in_range else " "
+                        line_num = c.cyan(f"{num:4d}")
+                        if in_range:
+                            output.append(f"{marker}{line_num} | {content}")
+                        else:
+                            output.append(f"{marker}{line_num} | {c.dim(content)}")
 
         return "\n".join(output)
 
@@ -466,6 +488,10 @@ def main():
         default="json",
         help="Output format (default: json)",
     )
+    parser.add_argument(
+        "--compact", action="store_true", help="Output compact JSON (default: pretty-printed)"
+    )
+    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -512,7 +538,7 @@ def main():
         else:
             result = {"error": f"File not found: {args.file}"}
 
-    print(format_output(result, args.output))
+    print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
 
 
 if __name__ == "__main__":

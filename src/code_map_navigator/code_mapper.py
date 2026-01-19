@@ -32,7 +32,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .colors import get_colors
+try:
+    from .colors import get_colors
+except ImportError:
+    from colors import get_colors
 
 __version__ = "1.2.0"
 

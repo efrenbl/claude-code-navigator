@@ -23,7 +23,10 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .colors import get_colors
+try:
+    from .colors import get_colors
+except ImportError:
+    from colors import get_colors
 
 __version__ = "1.2.0"
 

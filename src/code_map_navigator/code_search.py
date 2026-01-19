@@ -27,7 +27,10 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Union
 
-from .colors import get_colors
+try:
+    from .colors import get_colors
+except ImportError:
+    from colors import get_colors
 
 __version__ = "1.2.0"
 

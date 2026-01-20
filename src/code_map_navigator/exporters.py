@@ -23,7 +23,7 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from .colors import get_colors
 
@@ -484,7 +484,7 @@ class GraphVizExporter(BaseExporter):
             for source_id, dep_name in edges:
                 # Try to find the target node
                 target_id = None
-                for (file_path, name), nid in node_ids.items():
+                for (_file_path, name), nid in node_ids.items():
                     if name == dep_name:
                         target_id = nid
                         break

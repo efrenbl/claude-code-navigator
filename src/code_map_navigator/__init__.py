@@ -52,8 +52,6 @@ from .code_mapper import CodeMapper, GenericAnalyzer, GitIntegration, PythonAnal
 from .code_search import CodeSearcher, SearchResult
 from .completions import generate_bash_completion, generate_zsh_completion
 from .exporters import GraphVizExporter, HTMLExporter, MarkdownExporter, get_exporter
-from .line_reader import LineReader
-from .watcher import CodeMapWatcher
 
 # Import JS/TS analyzers (always available, with fallback to GenericAnalyzer)
 from .js_ts_analyzer import (
@@ -61,6 +59,8 @@ from .js_ts_analyzer import (
     JavaScriptAnalyzer,
     TypeScriptAnalyzer,
 )
+from .line_reader import LineReader
+from .watcher import CodeMapWatcher
 
 __all__ = [
     # Version info

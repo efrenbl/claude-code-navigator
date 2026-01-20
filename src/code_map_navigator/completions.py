@@ -16,9 +16,7 @@ Example:
 """
 
 import json
-import os
-from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 __version__ = "1.3.0"
 

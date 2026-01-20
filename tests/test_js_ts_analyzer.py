@@ -4,16 +4,16 @@ This module tests both tree-sitter-based and regex-based (fallback) analysis
 for JavaScript and TypeScript files.
 """
 
-import pytest
 from pathlib import Path
 
+import pytest
+
+from code_map_navigator.code_mapper import GenericAnalyzer
 from code_map_navigator.js_ts_analyzer import (
     TREE_SITTER_AVAILABLE,
     JavaScriptAnalyzer,
     TypeScriptAnalyzer,
 )
-from code_map_navigator.code_mapper import GenericAnalyzer
-
 
 # Paths to fixtures
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

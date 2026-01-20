@@ -1,8 +1,6 @@
 """Tests for extra features: completions, watcher, and exporters."""
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 

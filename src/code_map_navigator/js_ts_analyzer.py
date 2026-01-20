@@ -25,7 +25,7 @@ import sys
 from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from tree_sitter import Node, Tree
+    from tree_sitter import Node
 
 # Try to import tree-sitter
 try:

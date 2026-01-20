@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.4.0] - 2026-01-20
+
+### Added
+- **Aggressive Claude Code integration**: Enhanced skill description with explicit triggers
+  - Skill now activates on common phrases: "where is", "find", "search", "how does X work"
+  - Lowered threshold from 50+ to 20+ files for recommendations
+  - Added trigger keywords for better automatic activation
+
+### Changed
+- Updated skill description in SKILL.md with clearer, more comprehensive triggers
+- Skill file regenerated with v1.4.0 metadata
+
+### Documentation
+- Added recommended global CLAUDE.md configuration
+- Added recommended hooks configuration for settings.json
+- Documented best practices for integrating with Claude Code sessions
+
 ## [1.3.0] - 2026-01-20
 
 ### Added

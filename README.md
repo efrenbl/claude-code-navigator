@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python 3.8+">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/version-1.3.0-orange.svg" alt="Version 1.3.0">
+  <img src="https://img.shields.io/badge/version-1.4.0-orange.svg" alt="Version 1.4.0">
   <img src="https://github.com/efrenbl/claude-code-navigator/actions/workflows/ci.yml/badge.svg" alt="CI Status">
 </p>
 
@@ -169,6 +169,51 @@ claude "/code-map-navigator"
 
 # Or inside a Claude Code session
 /code-map-navigator
+```
+
+### Maximizing Integration (Recommended)
+
+For the best experience, add these configurations:
+
+**1. Global CLAUDE.md** (`~/.claude/CLAUDE.md`):
+```markdown
+# Code Navigation Guidelines
+
+## Use /code-map-navigator FIRST when:
+- Exploring or understanding any codebase structure
+- Finding functions, classes, methods, or modules
+- User asks "where is X", "how does X work", "find X"
+- Working with projects of 20+ files
+- Before reading entire files - get line numbers first
+
+## Use Grep/Glob only when:
+- Searching for literal strings or regex patterns
+- The codemap doesn't exist and it's a quick search
+- Searching in non-code files (configs, logs)
+```
+
+**2. Hooks in settings.json** (`~/.claude/settings.json`):
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Glob",
+        "hooks": [{
+          "type": "command",
+          "command": "echo '💡 Tip: For code symbols, consider /code-map-navigator' >&2; exit 0"
+        }]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [{
+          "type": "command",
+          "command": "echo '💡 Tip: code-search is more precise for functions/classes' >&2; exit 0"
+        }]
+      }
+    ]
+  }
+}
 ```
 
 ---

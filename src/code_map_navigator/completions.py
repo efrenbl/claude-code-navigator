@@ -129,7 +129,7 @@ try:
         for sym in file_info.get('symbols', []):
             symbols.add(sym['name'])
     print(' '.join(sorted(symbols)[:50]))
-except:
+except (OSError, json.JSONDecodeError, KeyError, TypeError):
     pass
 " 2>/dev/null)
         COMPREPLY=($(compgen -W "${symbols}" -- "${cur}"))
@@ -282,7 +282,7 @@ try:
         for sym in file_info.get('symbols', []):
             symbols.add(sym['name'])
     print('\\n'.join(sorted(symbols)[:100]))
-except:
+except (OSError, json.JSONDecodeError, KeyError, TypeError):
     pass
 " 2>/dev/null)"})
         _describe -t symbols 'symbol' symbols

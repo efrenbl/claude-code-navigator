@@ -13,11 +13,12 @@ Example:
         >>> watcher.start()  # Blocks until Ctrl+C
 """
 
-import hashlib
 import json
 import os
+import shutil
 import signal
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -25,7 +26,7 @@ from typing import Dict, List, Optional, Set
 from .code_mapper import DEFAULT_IGNORE_PATTERNS, LANGUAGE_EXTENSIONS, CodeMapper
 from .colors import get_colors
 
-__version__ = "1.3.0"
+__version__ = "1.4.1"
 
 
 class CodeMapWatcher:
@@ -142,16 +143,28 @@ class CodeMapWatcher:
             file_path: Path to the file.
 
         Returns:
-            Hash string, or None if file cannot be read.
+            Hash string, or None if file cannot be read (deleted, permission denied, etc).
         """
         try:
-            content = file_path.read_text(encoding="utf-8", errors="ignore")
-            return hashlib.md5(content.encode()).hexdigest()[:12]
-        except Exception:
+            # Check if file exists and is a regular file (not symlink pointing elsewhere)
+            if not file_path.is_file():
+                return None
+            from . import compute_content_hash
+
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+            return compute_content_hash(content)
+        except (OSError, IOError, PermissionError):
+            # File may have been deleted, or permission denied - this is expected
+            # during rapid file changes (TOCTOU race condition handling)
             return None
 
     def _check_for_changes(self) -> bool:
         """Check if any watched files have changed.
+
+        Handles TOCTOU (time-of-check to time-of-use) race conditions by:
+        - Tracking files that become unreadable (deleted during scan)
+        - Using explicit markers for inaccessible files
+        - Gracefully handling files that disappear between listing and hashing
 
         Returns:
             True if changes were detected.
@@ -160,10 +173,19 @@ class CodeMapWatcher:
         current_hashes: Dict[str, str] = {}
 
         for file_path in current_files:
-            rel_path = str(file_path.relative_to(self.root_path))
+            try:
+                rel_path = str(file_path.relative_to(self.root_path))
+            except ValueError:
+                # File somehow escaped root (shouldn't happen, but be safe)
+                continue
+
             file_hash = self._hash_file(file_path)
-            if file_hash:
+            if file_hash is not None:
                 current_hashes[rel_path] = file_hash
+            else:
+                # File existed in listing but couldn't be read (TOCTOU race)
+                # Mark as inaccessible so we detect when it becomes readable again
+                current_hashes[rel_path] = "__INACCESSIBLE__"
 
         # Check for changes
         changed = False
@@ -209,12 +231,36 @@ class CodeMapWatcher:
             else:
                 code_map = mapper.scan()
 
-            # Write the map
-            with open(self.output_path, "w", encoding="utf-8") as f:
-                if self.compact:
-                    json.dump(code_map, f, separators=(",", ":"))
-                else:
-                    json.dump(code_map, f, indent=2)
+            # Write the map atomically (write to temp file, then rename)
+            # This prevents corruption if disk is full or process is interrupted
+            output_dir = os.path.dirname(self.output_path) or "."
+            tmp_fd = None
+            tmp_path = None
+            try:
+                tmp_fd, tmp_path = tempfile.mkstemp(
+                    suffix=".json.tmp",
+                    dir=output_dir,
+                    prefix=".codemap_"
+                )
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                    tmp_fd = None  # os.fdopen takes ownership
+                    if self.compact:
+                        json.dump(code_map, f, separators=(",", ":"))
+                    else:
+                        json.dump(code_map, f, indent=2)
+
+                # Atomic rename (on same filesystem)
+                shutil.move(tmp_path, self.output_path)
+                tmp_path = None  # Successfully moved
+            finally:
+                # Clean up temp file if write or move failed
+                if tmp_fd is not None:
+                    os.close(tmp_fd)
+                if tmp_path is not None and os.path.exists(tmp_path):
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
 
             elapsed = time.time() - start_time
             stats = code_map["stats"]
@@ -236,8 +282,12 @@ class CodeMapWatcher:
                     file=sys.stderr,
                 )
 
+        except (OSError, IOError) as e:
+            print(f"{c.error('✗')} Disk error updating map: {e}", file=sys.stderr)
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"{c.error('✗')} Data error in map: {e}", file=sys.stderr)
         except Exception as e:
-            print(f"{c.error('✗')} Error updating map: {e}", file=sys.stderr)
+            print(f"{c.error('✗')} Unexpected error updating map: {type(e).__name__}: {e}", file=sys.stderr)
 
     def _initial_scan(self) -> None:
         """Perform initial scan to populate file hashes."""

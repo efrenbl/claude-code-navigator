@@ -23,7 +23,6 @@ Attributes:
 import argparse
 import ast
 import fnmatch
-import hashlib
 import json
 import os
 import subprocess
@@ -117,6 +116,7 @@ class Symbol:
     parent: Optional[str] = None
     dependencies: List[str] = None
     decorators: List[str] = None
+    truncated: bool = False  # True if symbol exceeded max line limit during analysis
 
     def __post_init__(self):
         """Initialize mutable default values."""
@@ -204,7 +204,8 @@ class PythonAnalyzer(ast.NodeVisitor):
                 if arg.annotation:
                     try:
                         arg_str += f": {ast.unparse(arg.annotation)}"
-                    except:
+                    except (TypeError, AttributeError, RecursionError, ValueError):
+                        # ast.unparse can fail on malformed/complex AST nodes
                         pass
                 args.append(arg_str)
 
@@ -212,7 +213,8 @@ class PythonAnalyzer(ast.NodeVisitor):
             if node.returns:
                 try:
                     returns = f" -> {ast.unparse(node.returns)}"
-                except:
+                except (TypeError, AttributeError, RecursionError, ValueError):
+                    # ast.unparse can fail on malformed/complex AST nodes
                     pass
 
             prefix = "async " if isinstance(node, ast.AsyncFunctionDef) else ""
@@ -232,7 +234,8 @@ class PythonAnalyzer(ast.NodeVisitor):
         for dec in node.decorator_list:
             try:
                 decorators.append(ast.unparse(dec))
-            except:
+            except (TypeError, AttributeError, RecursionError, ValueError):
+                # Fallback: try to get simple decorator name
                 if isinstance(dec, ast.Name):
                     decorators.append(dec.id)
         return decorators
@@ -273,7 +276,8 @@ class PythonAnalyzer(ast.NodeVisitor):
         for base in node.bases:
             try:
                 bases.append(ast.unparse(base))
-            except:
+            except (TypeError, AttributeError, RecursionError, ValueError):
+                # ast.unparse can fail on complex/malformed base class expressions
                 pass
 
         signature = f"class {node.name}"
@@ -405,6 +409,9 @@ class GenericAnalyzer:
         },
     }
 
+    # Maximum lines to scan for a symbol's end before giving up
+    MAX_SYMBOL_LINES = 500
+
     def __init__(self, file_path: str, source: str, language: str):
         """Initialize the generic analyzer.
 
@@ -437,6 +444,7 @@ class GenericAnalyzer:
                 line_end = line_num
                 brace_count = 0
                 started = False
+                was_truncated = False
                 for i, line in enumerate(self.lines[line_num - 1 :], start=line_num):
                     brace_count += line.count("{") - line.count("}")
                     if "{" in line:
@@ -444,8 +452,9 @@ class GenericAnalyzer:
                     if started and brace_count <= 0:
                         line_end = i
                         break
-                    if i > line_num + 500:
+                    if i > line_num + self.MAX_SYMBOL_LINES:
                         line_end = i
+                        was_truncated = True  # Symbol exceeded max line limit
                         break
 
                 symbols.append(
@@ -456,6 +465,7 @@ class GenericAnalyzer:
                         line_start=line_num,
                         line_end=line_end,
                         signature=match.group(0).strip()[:100],
+                        truncated=was_truncated,
                     )
                 )
 
@@ -727,7 +737,9 @@ class CodeMapper:
         Returns:
             12-character MD5 hash of the content.
         """
-        return hashlib.md5(content.encode()).hexdigest()[:12]
+        from . import compute_content_hash
+
+        return compute_content_hash(content)
 
     def analyze_file(self, file_path: Path) -> List[Symbol]:
         """Analyze a single file and extract its symbols.
@@ -846,15 +858,17 @@ class CodeMapper:
             >>> print(result['stats'])
             {'files_processed': 5, 'files_unchanged': 137, 'files_added': 2, ...}
         """
-        # Load existing map
+        # Load existing map - only extract 'files' to minimize memory usage
+        # The full map can be large; we only need the files dict for comparison
         try:
             with open(existing_map_path, encoding="utf-8") as f:
-                self._existing_map = json.load(f)
+                existing_map = json.load(f)
+                # Extract only what we need, let the rest be garbage collected
+                existing_files = existing_map.get("files", {})
+                del existing_map  # Explicit cleanup of the full map
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Cannot load existing map ({e}), performing full scan", file=sys.stderr)
             return self.scan()
-
-        existing_files = self._existing_map.get("files", {})
         print(f"Incremental scan at: {self.root_path}", file=sys.stderr)
         print(f"Existing map has {len(existing_files)} files", file=sys.stderr)
 
@@ -873,6 +887,8 @@ class CodeMapper:
         current_files: Dict[str, str] = {}  # rel_path -> hash
 
         # First pass: collect all current files and their hashes
+        # Note: Files may be deleted/modified during walk (TOCTOU).
+        # We handle this by checking existence and catching exceptions.
         for root, dirs, files in os.walk(self.root_path):
             dirs[:] = [d for d in dirs if not self.should_ignore(Path(root) / d)]
 
@@ -881,12 +897,23 @@ class CodeMapper:
                 if self.should_ignore(file_path):
                     continue
 
+                # Skip symlinks to prevent symlink attacks
+                try:
+                    if file_path.is_symlink():
+                        continue
+                except OSError:
+                    continue
+
                 language = self.get_language(file_path)
                 if language:
                     rel_path = str(file_path.relative_to(self.root_path))
-                    current_hash = self.get_current_file_hash(file_path)
-                    if current_hash:
-                        current_files[rel_path] = current_hash
+                    try:
+                        current_hash = self.get_current_file_hash(file_path)
+                        if current_hash:
+                            current_files[rel_path] = current_hash
+                    except (OSError, IOError, PermissionError):
+                        # File disappeared or became inaccessible during scan
+                        pass
 
         # Categorize files
         unchanged_files = []
@@ -929,18 +956,34 @@ class CodeMapper:
                     parent=sym_data.get("parent"),
                     dependencies=sym_data.get("deps") or [],
                     decorators=sym_data.get("decorators") or [],
+                    truncated=sym_data.get("truncated", False),
                 )
                 self.symbols.append(symbol)
 
         self.stats["files_unchanged"] = len(unchanged_files)
 
         # Analyze modified and added files
+        # Note: TOCTOU mitigation - files may have changed or been deleted
+        # between the hash check and analysis. We handle this gracefully.
         files_to_analyze = modified_files + added_files
         for rel_path in files_to_analyze:
             file_path = self.root_path / rel_path
-            symbols = self.analyze_file(file_path)
-            self.symbols.extend(symbols)
-            self.stats["files_processed"] += 1
+            try:
+                # Check file still exists and is a regular file (not symlink)
+                if not file_path.is_file() or file_path.is_symlink():
+                    # File was deleted or replaced with symlink between hash and analyze
+                    print(f"  Skipping {rel_path}: file no longer exists or is symlink", file=sys.stderr)
+                    self.stats["errors"] += 1
+                    continue
+
+                symbols = self.analyze_file(file_path)
+                self.symbols.extend(symbols)
+                self.stats["files_processed"] += 1
+            except (OSError, IOError, PermissionError) as e:
+                # File became inaccessible between hash check and analysis (TOCTOU)
+                print(f"  Skipping {rel_path}: {e}", file=sys.stderr)
+                self.stats["errors"] += 1
+                continue
 
         self.stats["files_added"] = len(added_files)
         self.stats["files_modified"] = len(modified_files)
@@ -970,18 +1013,20 @@ class CodeMapper:
                     "hash": self.file_hashes.get(symbol.file_path, ""),
                     "symbols": [],
                 }
-            files_map[symbol.file_path]["symbols"].append(
-                {
-                    "name": symbol.name,
-                    "type": symbol.type,
-                    "lines": [symbol.line_start, symbol.line_end],
-                    "signature": symbol.signature,
-                    "docstring": symbol.docstring,
-                    "parent": symbol.parent,
-                    "deps": symbol.dependencies[:10] if symbol.dependencies else None,
-                    "decorators": symbol.decorators if symbol.decorators else None,
-                }
-            )
+            symbol_dict = {
+                "name": symbol.name,
+                "type": symbol.type,
+                "lines": [symbol.line_start, symbol.line_end],
+                "signature": symbol.signature,
+                "docstring": symbol.docstring,
+                "parent": symbol.parent,
+                "deps": symbol.dependencies[:10] if symbol.dependencies else None,
+                "decorators": symbol.decorators if symbol.decorators else None,
+            }
+            # Only include truncated flag when True (keeps output compact)
+            if symbol.truncated:
+                symbol_dict["truncated"] = True
+            files_map[symbol.file_path]["symbols"].append(symbol_dict)
 
         symbol_index = {}
         for symbol in self.symbols:

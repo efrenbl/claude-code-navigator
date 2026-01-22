@@ -13,6 +13,7 @@ Example:
 
 import os
 import sys
+import threading
 
 __version__ = "1.2.0"
 
@@ -174,22 +175,35 @@ class Colors:
         return self.cyan(text)
 
 
-# Global instance for convenience
+# Global instance for convenience (thread-safe singleton)
 _colors = None
+_colors_lock = threading.Lock()
 
 
 def get_colors(no_color: bool = False) -> Colors:
     """Get a Colors instance, optionally disabling colors.
 
+    Thread-safe singleton pattern: the global instance is created once
+    and reused across all threads.
+
     Args:
-        no_color: If True, disable colors regardless of environment.
+        no_color: If True, return a new disabled Colors instance
+                  (not cached, allows per-call override).
 
     Returns:
         Colors instance configured appropriately.
     """
     global _colors
+
+    # For no_color=True, always return a fresh disabled instance
+    # This allows callers to override colors on a per-call basis
     if no_color:
         return Colors(enabled=False)
+
+    # Double-checked locking pattern for thread-safe lazy initialization
     if _colors is None:
-        _colors = Colors()
+        with _colors_lock:
+            # Check again inside the lock (another thread may have initialized)
+            if _colors is None:
+                _colors = Colors()
     return _colors

@@ -57,18 +57,35 @@ class LineReader:
         self.root_path = Path(root_path) if root_path else Path.cwd()
 
     def _resolve_path(self, file_path: str) -> Path:
-        """Resolve a file path relative to root.
+        """Resolve a file path relative to root with security validation.
 
         Args:
             file_path: Relative or absolute file path.
 
         Returns:
             Resolved absolute Path object.
+
+        Raises:
+            ValueError: If the resolved path escapes the root directory
+                       (path traversal attempt).
         """
         path = Path(file_path)
         if not path.is_absolute():
             path = self.root_path / path
-        return path.resolve()
+
+        resolved = path.resolve()
+        root_resolved = self.root_path.resolve()
+
+        # Security check: ensure path doesn't escape root directory
+        try:
+            resolved.relative_to(root_resolved)
+        except ValueError:
+            raise ValueError(
+                f"Security error: path '{file_path}' escapes root directory. "
+                f"Resolved to '{resolved}' which is outside '{root_resolved}'"
+            )
+
+        return resolved
 
     def read_lines(
         self, file_path: str, start: int, end: Optional[int] = None, context: int = 0
@@ -93,7 +110,10 @@ class LineReader:
             >>> result = reader.read_lines('api.py', 45, 60, context=2)
             >>> print(result['lines'][0]['content'])
         """
-        path = self._resolve_path(file_path)
+        try:
+            path = self._resolve_path(file_path)
+        except ValueError as e:
+            return {"error": str(e)}
 
         if not path.exists():
             return {"error": f"File not found: {file_path}"}
@@ -151,7 +171,10 @@ class LineReader:
             >>> result = reader.read_ranges('api.py', ranges, context=2)
             >>> print(f"Got {len(result['sections'])} sections")
         """
-        path = self._resolve_path(file_path)
+        try:
+            path = self._resolve_path(file_path)
+        except ValueError as e:
+            return {"error": str(e)}
 
         if not path.exists():
             return {"error": f"File not found: {file_path}"}
@@ -243,7 +266,10 @@ class LineReader:
             >>> print(result['truncated'])  # True
             >>> print(result['skipped_lines'])  # ~150
         """
-        path = self._resolve_path(file_path)
+        try:
+            path = self._resolve_path(file_path)
+        except ValueError as e:
+            return {"error": str(e)}
 
         if not path.exists():
             return {"error": f"File not found: {file_path}"}
@@ -347,7 +373,10 @@ class LineReader:
             >>> result = reader.search_in_file('api.py', 'def process')
             >>> print(f"Found {result['matches']} matches")
         """
-        path = self._resolve_path(file_path)
+        try:
+            path = self._resolve_path(file_path)
+        except ValueError as e:
+            return {"error": str(e)}
 
         if not path.exists():
             return {"error": f"File not found: {file_path}"}
@@ -495,16 +524,47 @@ def run_read(args: argparse.Namespace) -> None:
     if args.search:
         result = reader.search_in_file(args.file, args.search, context=args.context)
     elif args.lines:
-        # Parse line specification
+        # Parse line specification with validation
         ranges = []
         for part in args.lines.split(","):
             part = part.strip()
-            if "-" in part:
-                start, end = part.split("-", 1)
-                ranges.append((int(start), int(end)))
-            else:
-                line = int(part)
-                ranges.append((line, line))
+            if not part:
+                # Skip empty parts (e.g., "10,,20" or trailing comma)
+                continue
+            try:
+                if "-" in part:
+                    start_str, end_str = part.split("-", 1)
+                    start = int(start_str.strip())
+                    end = int(end_str.strip())
+                    if start < 1:
+                        result = {"error": f"Invalid line number: {start}. Line numbers must be >= 1"}
+                        print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+                        return
+                    if end < 1:
+                        result = {"error": f"Invalid line number: {end}. Line numbers must be >= 1"}
+                        print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+                        return
+                    if start > end:
+                        result = {"error": f"Invalid range: {start}-{end}. Start must be <= end"}
+                        print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+                        return
+                    ranges.append((start, end))
+                else:
+                    line = int(part)
+                    if line < 1:
+                        result = {"error": f"Invalid line number: {line}. Line numbers must be >= 1"}
+                        print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+                        return
+                    ranges.append((line, line))
+            except ValueError:
+                result = {"error": f"Invalid line specification: '{part}'. Expected number or range (e.g., '10' or '10-20')"}
+                print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+                return
+
+        if not ranges:
+            result = {"error": "No valid line ranges specified"}
+            print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+            return
 
         if len(ranges) == 1 and args.symbol:
             result = reader.read_symbol(
@@ -520,7 +580,13 @@ def run_read(args: argparse.Namespace) -> None:
             result = reader.read_ranges(args.file, ranges, context=args.context)
     else:
         # Default: show file info
-        path = reader._resolve_path(args.file)
+        try:
+            path = reader._resolve_path(args.file)
+        except ValueError as e:
+            result = {"error": str(e)}
+            print(format_output(result, args.output, compact=args.compact, no_color=args.no_color))
+            return
+
         if path.exists():
             with open(path, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()

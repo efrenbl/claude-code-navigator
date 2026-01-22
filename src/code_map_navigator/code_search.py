@@ -19,7 +19,6 @@ Example:
 """
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -369,18 +368,28 @@ class CodeSearcher:
             file_path: Optional file path filter.
 
         Returns:
-            Dict with 'calls' (what this symbol uses) and 'called_by' lists.
+            Dict with:
+                - found: Boolean indicating if the symbol was found
+                - symbol: The searched symbol name
+                - file: File path where symbol was found (None if not found)
+                - lines: Line range [start, end] (None if not found)
+                - calls: List of symbols this symbol depends on
+                - called_by: List of dicts with symbols that depend on this one
 
         Example:
             >>> deps = searcher.find_dependencies('process_payment')
-            >>> print(f"Calls: {deps['calls']}")
-            >>> print(f"Called by: {len(deps['called_by'])} functions")
+            >>> if deps['found']:
+            ...     print(f"Calls: {deps['calls']}")
+            ...     print(f"Called by: {len(deps['called_by'])} functions")
+            ... else:
+            ...     print("Symbol not found")
         """
         deps_of = []
         depended_by = []
 
         target_file = None
         target_lines = None
+        found = False
 
         for fpath, file_info in self.code_map.get("files", {}).items():
             if file_path and file_path not in fpath:
@@ -388,8 +397,10 @@ class CodeSearcher:
 
             for sym in file_info.get("symbols", []):
                 if sym["name"].lower() == symbol_name.lower():
-                    target_file = fpath
-                    target_lines = sym["lines"]
+                    if not found:  # Only use first match for target info
+                        target_file = fpath
+                        target_lines = sym["lines"]
+                        found = True
                     if sym.get("deps"):
                         deps_of = sym["deps"]
                     break
@@ -399,6 +410,7 @@ class CodeSearcher:
                     depended_by.append({"name": sym["name"], "file": fpath, "lines": sym["lines"]})
 
         return {
+            "found": found,
             "symbol": symbol_name,
             "file": target_file,
             "lines": target_lines,
@@ -522,11 +534,13 @@ class CodeSearcher:
                 missing_files.append(file_path)
             else:
                 try:
+                    from . import compute_content_hash
+
                     content = full_path.read_text(encoding="utf-8", errors="ignore")
-                    current_hash = hashlib.md5(content.encode()).hexdigest()[:12]
+                    current_hash = compute_content_hash(content)
                     if current_hash != stored_hash:
                         stale_files.append(file_path)
-                except Exception:
+                except (OSError, IOError):
                     stale_files.append(file_path)
 
         return {

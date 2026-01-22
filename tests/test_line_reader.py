@@ -9,19 +9,25 @@ from code_map_navigator.line_reader import LineReader, format_output
 
 
 @pytest.fixture
-def sample_file():
-    """Create a sample file for testing."""
-    content = "\n".join([f"Line {i}" for i in range(1, 101)])  # 100 lines
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(content)
-        f.flush()
-        yield f.name
+def temp_dir():
+    """Create a temporary directory for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
 
 
 @pytest.fixture
-def reader():
-    """Create a LineReader instance."""
-    return LineReader()
+def sample_file(temp_dir):
+    """Create a sample file for testing in the temp directory."""
+    content = "\n".join([f"Line {i}" for i in range(1, 101)])  # 100 lines
+    file_path = Path(temp_dir) / "sample.py"
+    file_path.write_text(content)
+    yield str(file_path)
+
+
+@pytest.fixture
+def reader(temp_dir):
+    """Create a LineReader instance with temp_dir as root."""
+    return LineReader(temp_dir)
 
 
 class TestLineReader:
@@ -79,9 +85,10 @@ class TestLineReader:
         assert result["actual"][1] == 100  # Can't go past line 100
         assert len(result["lines"]) >= 3
 
-    def test_read_file_not_found(self, reader):
-        """Test reading a non-existent file."""
-        result = reader.read_lines("/nonexistent/file.py", 1, 10)
+    def test_read_file_not_found(self, reader, temp_dir):
+        """Test reading a non-existent file within root directory."""
+        # Use a path within temp_dir that doesn't exist
+        result = reader.read_lines("nonexistent_file.py", 1, 10)
 
         assert "error" in result
         assert "not found" in result["error"].lower()
@@ -120,13 +127,12 @@ class TestReadSymbol:
     """Tests for read_symbol method."""
 
     @pytest.fixture
-    def large_file(self):
-        """Create a larger file for truncation testing."""
+    def large_file(self, temp_dir):
+        """Create a larger file for truncation testing in temp_dir."""
         content = "\n".join([f"Line {i}: some content here" for i in range(1, 301)])
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(content)
-            f.flush()
-            yield f.name
+        file_path = Path(temp_dir) / "large_sample.py"
+        file_path.write_text(content)
+        yield str(file_path)
 
     def test_read_small_symbol(self, reader, sample_file):
         """Test reading a small symbol (no truncation)."""
@@ -163,8 +169,8 @@ class TestSearchInFile:
     """Tests for search_in_file method."""
 
     @pytest.fixture
-    def searchable_file(self):
-        """Create a file with searchable content."""
+    def searchable_file(self, temp_dir):
+        """Create a file with searchable content in temp_dir."""
         content = """
 def process_payment(amount):
     validate(amount)
@@ -177,10 +183,9 @@ def process_refund(amount):
     validate(amount)
     return refund(amount)
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(content)
-            f.flush()
-            yield f.name
+        file_path = Path(temp_dir) / "searchable.py"
+        file_path.write_text(content)
+        yield str(file_path)
 
     def test_search_literal(self, reader, searchable_file):
         """Test searching for a literal string."""
@@ -285,14 +290,31 @@ class TestLineReaderWithRoot:
             assert "error" not in result
             assert len(result["lines"]) == 3
 
-    def test_resolve_absolute_path(self):
-        """Test that absolute paths work regardless of root."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("Line 1\nLine 2\nLine 3")
-            f.flush()
+    def test_resolve_absolute_path_within_root(self):
+        """Test that absolute paths within root directory work."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a file inside tmpdir
+            test_file = Path(tmpdir) / "test.py"
+            test_file.write_text("Line 1\nLine 2\nLine 3")
 
-            reader = LineReader("/some/other/root")
-            result = reader.read_lines(f.name, 1, 3)  # Absolute path
+            # Reader with tmpdir as root should accept absolute path within it
+            reader = LineReader(tmpdir)
+            result = reader.read_lines(str(test_file), 1, 3)  # Absolute path within root
 
             assert "error" not in result
             assert len(result["lines"]) == 3
+
+    def test_path_traversal_blocked(self):
+        """Test that path traversal attempts are blocked (security)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a file inside tmpdir
+            test_file = Path(tmpdir) / "test.py"
+            test_file.write_text("Line 1\nLine 2\nLine 3")
+
+            # Reader with a different root should block access
+            reader = LineReader("/some/other/root")
+            result = reader.read_lines(str(test_file), 1, 3)
+
+            # Should return error for path traversal
+            assert "error" in result
+            assert "security" in result["error"].lower() or "escapes" in result["error"].lower()

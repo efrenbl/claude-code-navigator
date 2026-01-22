@@ -365,7 +365,8 @@ class TestReadCommand:
         """Test reading a single line."""
         parser = argparse.ArgumentParser()
         add_read_arguments(parser)
-        args = parser.parse_args([str(test_file), "10"])
+        # Pass --root to allow access to temp file
+        args = parser.parse_args([str(test_file), "10", "--root", str(test_file.parent)])
 
         run_read(args)
 
@@ -379,7 +380,8 @@ class TestReadCommand:
         """Test reading a range of lines."""
         parser = argparse.ArgumentParser()
         add_read_arguments(parser)
-        args = parser.parse_args([str(test_file), "10-15"])
+        # Pass --root to allow access to temp file
+        args = parser.parse_args([str(test_file), "10-15", "--root", str(test_file.parent)])
 
         run_read(args)
 
@@ -392,7 +394,8 @@ class TestReadCommand:
         """Test reading with context lines."""
         parser = argparse.ArgumentParser()
         add_read_arguments(parser)
-        args = parser.parse_args([str(test_file), "50", "-c", "2"])
+        # Pass --root to allow access to temp file
+        args = parser.parse_args([str(test_file), "50", "-c", "2", "--root", str(test_file.parent)])
 
         run_read(args)
 

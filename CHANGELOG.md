@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.4.1] - 2026-01-21
+
+### Security
+- **CRITICAL: Path Traversal Prevention** - Added security validation in `LineReader` to prevent reading files outside root directory
+- **CRITICAL: Atomic File Writes** - Watch mode now writes code maps atomically using temp files to prevent corruption
+- **CRITICAL: TOCTOU Race Conditions** - Fixed time-of-check to time-of-use vulnerabilities in watcher and incremental scan
+- **HIGH: Thread Safety** - Added double-checked locking pattern to `get_colors()` singleton
+
+### Fixed
+- **Bare Except Clauses** - Replaced 6 bare `except:` blocks with specific exception types across completions.py, code_mapper.py, and watcher.py
+- **Memory Leak** - Fixed `scan_incremental()` holding entire map in memory; now releases after extracting file data
+- **Silent Data Truncation** - `GenericAnalyzer` now sets `truncated=True` flag when 500-line limit is hit
+- **Input Validation** - Added comprehensive validation for line range parsing in CLI (negative numbers, invalid ranges, malformed input)
+- **API Consistency** - `find_dependencies()` now returns `found: true/false` field for consistency with other methods
+
+### Changed
+- **DRY Refactor** - Extracted `compute_content_hash()` to `__init__.py` as single source of truth (was duplicated in 3 modules)
+- Improved error messages for path traversal attempts with detailed security context
+
+### Tests
+- Added 6 new tests for path traversal prevention
+- Updated test fixtures to use proper temp directories with root paths
+- All 174 tests passing
+
 ## [1.4.0] - 2026-01-20
 
 ### Added
@@ -171,6 +195,8 @@ No unreleased changes.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.4.1 | 2026-01-21 | Security audit fixes: path traversal, TOCTOU, atomic writes |
+| 1.4.0 | 2026-01-20 | Aggressive Claude Code integration |
 | 1.3.0 | 2026-01-20 | AST for JS/TS, git integration, watch, export, completions |
 | 1.2.0 | 2026-01-19 | Terminal colors, `--no-color` flag, table format |
 | 1.1.0 | 2026-01-19 | Pretty output by default, `--compact` flag |
@@ -193,7 +219,9 @@ None at this time.
 
 ---
 
-[Unreleased]: https://github.com/efrenbl/claude-code-navigator/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/efrenbl/claude-code-navigator/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/efrenbl/claude-code-navigator/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/efrenbl/claude-code-navigator/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/efrenbl/claude-code-navigator/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/efrenbl/claude-code-navigator/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/efrenbl/claude-code-navigator/compare/v1.0.1...v1.1.0

@@ -44,16 +44,12 @@ Example:
     >>> content = reader.read_symbol('src/auth.py', 45, 89)
 """
 
-__version__ = "1.3.0"
-__author__ = "Efren"
-__license__ = "MIT"
+import hashlib
 
 from .code_mapper import CodeMapper, GenericAnalyzer, GitIntegration, PythonAnalyzer, Symbol
 from .code_search import CodeSearcher, SearchResult
 from .completions import generate_bash_completion, generate_zsh_completion
 from .exporters import GraphVizExporter, HTMLExporter, MarkdownExporter, get_exporter
-
-# Import JS/TS analyzers (always available, with fallback to GenericAnalyzer)
 from .js_ts_analyzer import (
     TREE_SITTER_AVAILABLE,
     JavaScriptAnalyzer,
@@ -61,6 +57,30 @@ from .js_ts_analyzer import (
 )
 from .line_reader import LineReader
 from .watcher import CodeMapWatcher
+
+__version__ = "1.4.1"
+__author__ = "Efren"
+__license__ = "MIT"
+
+
+def compute_content_hash(content: str) -> str:
+    """Compute a short hash of content for change detection.
+
+    This is the canonical hash function used across all modules for
+    consistent file change detection.
+
+    Args:
+        content: The text content to hash.
+
+    Returns:
+        A 12-character MD5 hash string.
+
+    Example:
+        >>> compute_content_hash("def foo(): pass")
+        'a1b2c3d4e5f6'
+    """
+    return hashlib.md5(content.encode()).hexdigest()[:12]
+
 
 __all__ = [
     # Version info
@@ -91,4 +111,6 @@ __all__ = [
     "generate_zsh_completion",
     # Feature flags
     "TREE_SITTER_AVAILABLE",
+    # Utilities
+    "compute_content_hash",
 ]

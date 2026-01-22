@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-code-navigator"
-version = "1.4.0"
+version = "1.4.1"
 description = "Token-efficient code navigation for large codebases - reduce token usage by 97%"
 readme = "README.md"
 license = {text = "MIT"}

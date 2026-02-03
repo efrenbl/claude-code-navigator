@@ -267,7 +267,11 @@ class ImportResolver:
         resolved_targets = []
         for target in targets:
             if self.base_url and not os.path.isabs(target) and not target.startswith("."):
-                target = os.path.join(self.base_url, target)
+                # Only join if base_url is not "." (current dir)
+                if self.base_url != ".":
+                    target = os.path.join(self.base_url, target)
+            # Normalize: remove leading "./" and use forward slashes
+            target = target.lstrip("./").replace("\\", "/")
             resolved_targets.append(target)
 
         self.aliases.append(AliasConfig(pattern=pattern, targets=resolved_targets))
@@ -485,7 +489,8 @@ class ImportResolver:
                     continue
 
                 full_path = Path(dirpath) / filename
-                rel_path = str(full_path.relative_to(self.root))
+                # Normalize to forward slashes for cross-platform consistency
+                rel_path = str(full_path.relative_to(self.root)).replace("\\", "/")
 
                 # Index by exact path
                 self.file_index["exact"].add(rel_path)
@@ -721,7 +726,9 @@ class ImportResolver:
 
         result = self._try_resolve_path(candidate, language)
         if result.found:
-            result.strategy = ResolveStrategy.RELATIVE
+            # Only set RELATIVE strategy if it wasn't resolved via INDEX
+            if result.strategy != ResolveStrategy.INDEX:
+                result.strategy = ResolveStrategy.RELATIVE
         return result
 
     def _try_resolve_path(self, path: str, language: str) -> ResolveResult:

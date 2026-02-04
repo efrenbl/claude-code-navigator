@@ -96,10 +96,11 @@ cnv = "codenav.cli:main"  # Short alias
 # MCP Server
 codenav-mcp = "codenav.mcp:main"
 
-# Legacy commands (deprecated, maintained for backward compatibility)
-code-nav = "codenav.code_navigator:main"
-code-search = "codenav.code_search:main"
-code-read = "codenav.line_reader:main"
+# DEPRECATED: Legacy commands - will be REMOVED in v3.0.0
+# Use `codenav map`, `codenav search`, `codenav read` instead
+# code-nav = "codenav.code_navigator:main"
+# code-search = "codenav.code_search:main"
+# code-read = "codenav.line_reader:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

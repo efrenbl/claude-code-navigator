@@ -1,10 +1,12 @@
 ---
 name: code-navigator
-version: "2.0.0"
 description: >
-  Universal code navigation skill for AI assistants. Reduces token usage
-  by up to 97%. IDE-agnostic: works with Claude Code, Cursor, VS Code, CLI.
+  Token-efficient code navigation for large codebases. Reduces token usage
+  by up to 97%. Use when exploring code structure, finding functions/classes,
+  or understanding architecture. Triggers: "find function", "where is X",
+  "code structure", "how does X work".
 license: MIT
+compatibility: "Python >=3.8, works with Claude Code, Cursor, VS Code, any terminal"
 allowed-tools:
   - Bash
   - Read
@@ -12,6 +14,8 @@ allowed-tools:
   - Grep
   - Write
 
+# Claude Code extensions (optional, ignored by other agents)
+version: "2.0.0"
 triggers:
   keywords:
     - find function

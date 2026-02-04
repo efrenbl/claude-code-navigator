@@ -391,7 +391,7 @@ python -c "import sys; sys.setrecursionlimit(2000); from codenav import CodeNavi
 If you can't resolve an issue:
 
 1. **Check existing issues:**
-   https://github.com/efrenbl/codenav/issues
+   https://github.com/efrenbl/code-navigator/issues
 
 2. **Create a new issue** with:
    - Python version (`python --version`)

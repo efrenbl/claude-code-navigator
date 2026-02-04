@@ -73,7 +73,10 @@ Code Navigator creates a lightweight index of your codebase **locally**, enablin
 ### Installation
 
 ```bash
-# Install via pip
+# Using npx skills (recommended for AI coding assistants)
+npx skills add github:efrenbl/code-navigator
+
+# Or install via pip
 pip install code-navigator
 
 # Or clone and install locally

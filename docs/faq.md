@@ -2,9 +2,9 @@
 
 ## General
 
-### What is Code Navigator?
+### What is Claude Code Navigator?
 
-Code Navigator is a tool that creates a searchable index of your codebase, allowing you to find and read specific code sections without loading entire files. This dramatically reduces token usage when working with AI coding assistants like Claude.
+Claude Code Navigator is a tool that creates a searchable index of your codebase, allowing you to find and read specific code sections without loading entire files. This dramatically reduces token usage when working with AI coding assistants like Claude.
 
 ### How much does it reduce token usage?
 
@@ -27,14 +27,14 @@ Python 3.8 or higher.
 
 ### Are there any dependencies?
 
-No! Code Navigator uses only the Python standard library. Zero external dependencies.
+No! Claude Code Navigator uses only the Python standard library. Zero external dependencies.
 
 ### Can I use it in a Docker container?
 
 Yes. Example Dockerfile:
 ```dockerfile
 FROM python:3.11-slim
-RUN pip install code-navigator
+RUN pip install claude-code-navigator
 WORKDIR /code
 ENTRYPOINT ["codenav scan"]
 ```

@@ -1,4 +1,4 @@
-# Future Improvements - Code Navigator
+# Future Improvements - Claude Code Navigator
 
 This document tracks potential improvements and enhancements for the project.
 
@@ -119,10 +119,10 @@ Added tree-sitter based AST parsing for JavaScript and TypeScript files as an op
 
 ```bash
 # Install with AST support
-pip install codenav[ast]
+pip install claude-code-navigator[ast]
 
 # Without AST (regex fallback, zero dependencies)
-pip install codenav
+pip install claude-code-navigator
 ```
 
 Features:

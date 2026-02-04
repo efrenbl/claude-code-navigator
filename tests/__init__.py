@@ -1,1 +1,1 @@
-"""Tests for Code Navigator."""
+"""Tests for Claude Code Navigator."""

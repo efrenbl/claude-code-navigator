@@ -18,7 +18,7 @@ Example:
 
 Installation:
     To enable AST support, install with the 'ast' extra:
-        pip install codenav[ast]
+        pip install claude-code-navigator[ast]
 """
 
 import sys

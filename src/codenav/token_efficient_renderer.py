@@ -613,14 +613,14 @@ class TokenEfficientRenderer:
 
             for path, meta in self.files.items():
                 short_path = Path(path).stem
-                for cls in meta.classes[:self.max_classes]:
-                    methods = meta.methods.get(cls, [])[:self.max_methods]
+                for cls in meta.classes[: self.max_classes]:
+                    methods = meta.methods.get(cls, [])[: self.max_methods]
                     if methods:
                         classes.append(f"{short_path}.{cls}({','.join(methods)})")
                     else:
                         classes.append(f"{short_path}.{cls}")
 
-                for func in meta.functions[:self.max_functions]:
+                for func in meta.functions[: self.max_functions]:
                     if not func.startswith("_"):
                         functions.append(f"{short_path}.{func}")
 
@@ -643,14 +643,14 @@ class TokenEfficientRenderer:
                 short = Path(path).stem
                 symbols = []
 
-                for cls in meta.classes[:self.max_classes]:
-                    methods = meta.methods.get(cls, [])[:self.max_methods]
+                for cls in meta.classes[: self.max_classes]:
+                    methods = meta.methods.get(cls, [])[: self.max_methods]
                     if methods:
                         symbols.append(f"C:{cls}({','.join(methods)})")
                     else:
                         symbols.append(f"C:{cls}")
 
-                for func in meta.functions[:self.max_functions]:
+                for func in meta.functions[: self.max_functions]:
                     if not func.startswith("_"):
                         symbols.append(f"F:{func}")
 

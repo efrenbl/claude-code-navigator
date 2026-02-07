@@ -30,7 +30,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from .colors import get_colors
 
@@ -153,11 +153,11 @@ class Symbol:
     file_path: str
     line_start: int
     line_end: int
-    signature: Optional[str] = None
-    docstring: Optional[str] = None
-    parent: Optional[str] = None
-    dependencies: List[str] = None
-    decorators: List[str] = None
+    signature: str | None = None
+    docstring: str | None = None
+    parent: str | None = None
+    dependencies: list[str] = None
+    decorators: list[str] = None
     truncated: bool = False  # True if symbol exceeded max line limit during analysis
 
     def __post_init__(self):
@@ -204,9 +204,9 @@ class PythonAnalyzer(ast.NodeVisitor):
         self.file_path = file_path
         self.source = source
         self.lines = source.split("\n")
-        self.symbols: List[Symbol] = []
-        self.current_class: Optional[str] = None
-        self.imports: List[str] = []
+        self.symbols: list[Symbol] = []
+        self.current_class: str | None = None
+        self.imports: list[str] = []
 
     def get_line_end(self, node) -> int:
         """Get the end line of an AST node.
@@ -263,7 +263,7 @@ class PythonAnalyzer(ast.NodeVisitor):
             return f"{prefix}def {node.name}({', '.join(args)}){returns}"
         return ""
 
-    def get_decorators(self, node) -> List[str]:
+    def get_decorators(self, node) -> list[str]:
         """Extract decorator names from an AST node.
 
         Args:
@@ -282,7 +282,7 @@ class PythonAnalyzer(ast.NodeVisitor):
                     decorators.append(dec.id)
         return decorators
 
-    def get_docstring(self, node) -> Optional[str]:
+    def get_docstring(self, node) -> str | None:
         """Extract docstring from an AST node, truncated for efficiency.
 
         Args:
@@ -382,7 +382,7 @@ class PythonAnalyzer(ast.NodeVisitor):
         self.symbols.append(symbol)
         self.generic_visit(node)
 
-    def analyze(self) -> List[Symbol]:
+    def analyze(self) -> list[Symbol]:
         """Parse and analyze the file.
 
         Returns:
@@ -467,7 +467,7 @@ class GenericAnalyzer:
         self.language = language
         self.lines = source.split("\n")
 
-    def analyze(self) -> List[Symbol]:
+    def analyze(self) -> list[Symbol]:
         """Analyze the file using regex patterns.
 
         Returns:
@@ -554,7 +554,7 @@ class GitIntegration:
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             return False
 
-    def get_tracked_files(self) -> Set[str]:
+    def get_tracked_files(self) -> set[str]:
         """Get all files tracked by git.
 
         Returns:
@@ -577,7 +577,7 @@ class GitIntegration:
             pass
         return set()
 
-    def get_gitignore_patterns(self) -> List[str]:
+    def get_gitignore_patterns(self) -> list[str]:
         """Parse .gitignore and return patterns.
 
         Returns:
@@ -599,7 +599,7 @@ class GitIntegration:
 
         return patterns
 
-    def get_files_changed_since(self, commit: str) -> Set[str]:
+    def get_files_changed_since(self, commit: str) -> set[str]:
         """Get files that changed since a specific commit.
 
         Args:
@@ -625,7 +625,7 @@ class GitIntegration:
             pass
         return set()
 
-    def get_uncommitted_changes(self) -> Set[str]:
+    def get_uncommitted_changes(self) -> set[str]:
         """Get files with uncommitted changes.
 
         Returns:
@@ -683,7 +683,7 @@ class CodeNavigator:
     def __init__(
         self,
         root_path: str,
-        ignore_patterns: List[str] = None,
+        ignore_patterns: list[str] = None,
         git_only: bool = False,
         use_gitignore: bool = False,
     ):
@@ -699,14 +699,14 @@ class CodeNavigator:
         self.ignore_patterns = list(ignore_patterns or DEFAULT_IGNORE_PATTERNS)
         self.git_only = git_only
         self.use_gitignore = use_gitignore
-        self.symbols: List[Symbol] = []
-        self.file_hashes: Dict[str, str] = {}
+        self.symbols: list[Symbol] = []
+        self.file_hashes: dict[str, str] = {}
         self.stats = {"files_processed": 0, "symbols_found": 0, "errors": 0}
-        self._existing_map: Optional[Dict[str, Any]] = None
+        self._existing_map: dict[str, Any] | None = None
 
         # Initialize git integration
         self._git = GitIntegration(self.root_path)
-        self._git_tracked_files: Optional[Set[str]] = None
+        self._git_tracked_files: set[str] | None = None
 
         # Add gitignore patterns if requested
         if self.use_gitignore and self._git.available:
@@ -755,7 +755,7 @@ class CodeNavigator:
         except ValueError:
             return False
 
-    def get_language(self, file_path: Path) -> Optional[str]:
+    def get_language(self, file_path: Path) -> str | None:
         """Determine the programming language from file extension.
 
         Args:
@@ -783,7 +783,7 @@ class CodeNavigator:
 
         return compute_content_hash(content)
 
-    def analyze_file(self, file_path: Path) -> List[Symbol]:
+    def analyze_file(self, file_path: Path) -> list[Symbol]:
         """Analyze a single file and extract its symbols.
 
         Args:
@@ -824,7 +824,7 @@ class CodeNavigator:
             print(f"Error analyzing {file_path}: {e}", file=sys.stderr)
             return []
 
-    def scan(self) -> Dict[str, Any]:
+    def scan(self) -> dict[str, Any]:
         """Scan the entire codebase and generate a code map.
 
         Returns:
@@ -866,7 +866,7 @@ class CodeNavigator:
         self.stats["symbols_found"] = len(self.symbols)
         return self.generate_map()
 
-    def get_current_file_hash(self, file_path: Path) -> Optional[str]:
+    def get_current_file_hash(self, file_path: Path) -> str | None:
         """Get the hash of a file's current content without full analysis.
 
         Args:
@@ -882,7 +882,7 @@ class CodeNavigator:
         except Exception:
             return None
 
-    def scan_incremental(self, existing_map_path: str) -> Dict[str, Any]:
+    def scan_incremental(self, existing_map_path: str) -> dict[str, Any]:
         """Incrementally update an existing code map.
 
         Only re-analyzes files that have changed since the last scan.
@@ -926,7 +926,7 @@ class CodeNavigator:
         }
 
         # Track which files we've seen in current scan
-        current_files: Dict[str, str] = {}  # rel_path -> hash
+        current_files: dict[str, str] = {}  # rel_path -> hash
 
         # First pass: collect all current files and their hashes
         # Note: Files may be deleted/modified during walk (TOCTOU).
@@ -1037,7 +1037,7 @@ class CodeNavigator:
 
         return self.generate_map()
 
-    def generate_map(self) -> Dict[str, Any]:
+    def generate_map(self) -> dict[str, Any]:
         """Generate the code map structure from collected symbols.
 
         Returns:

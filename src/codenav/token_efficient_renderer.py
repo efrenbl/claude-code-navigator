@@ -37,7 +37,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 # Default limits for token-efficient rendering (configurable)
 DEFAULT_MAX_CLASSES = 2
@@ -71,9 +71,9 @@ class FileMicroMeta:
     """
 
     path: str
-    classes: List[str] = field(default_factory=list)
-    functions: List[str] = field(default_factory=list)
-    methods: Dict[str, List[str]] = field(default_factory=dict)
+    classes: list[str] = field(default_factory=list)
+    functions: list[str] = field(default_factory=list)
+    methods: dict[str, list[str]] = field(default_factory=dict)
     imports_count: int = 0
     importers_count: int = 0
     lines: int = 0
@@ -158,10 +158,10 @@ class TreeNode:
 
     name: str
     is_file: bool = False
-    meta: Optional[FileMicroMeta] = None
-    children: Dict[str, "TreeNode"] = field(default_factory=dict)
+    meta: FileMicroMeta | None = None
+    children: dict[str, "TreeNode"] = field(default_factory=dict)
 
-    def get_stats(self) -> Tuple[int, int, int]:
+    def get_stats(self) -> tuple[int, int, int]:
         """Get recursive stats: (file_count, symbol_count, hub_count)."""
         if self.is_file:
             symbols = len(self.meta.classes) + len(self.meta.functions) if self.meta else 0
@@ -213,7 +213,7 @@ class TokenEfficientRenderer:
 
     def __init__(
         self,
-        code_map: Dict[str, Any],
+        code_map: dict[str, Any],
         hub_threshold: int = 3,
         dependency_graph: Any = None,  # Optional DependencyGraph
         max_classes: int = DEFAULT_MAX_CLASSES,
@@ -239,8 +239,8 @@ class TokenEfficientRenderer:
         self.max_methods = max_methods
         self.max_functions = max_functions
         self.root_path = root_path
-        self.files: Dict[str, FileMicroMeta] = {}
-        self.tree: Optional[TreeNode] = None
+        self.files: dict[str, FileMicroMeta] = {}
+        self.tree: TreeNode | None = None
 
         self._parse_code_map()
         self._build_tree()
@@ -412,7 +412,7 @@ class TokenEfficientRenderer:
     def _render_node(
         self,
         node: TreeNode,
-        lines: List[str],
+        lines: list[str],
         prefix: str,
         is_last: bool,
         depth: int,
@@ -492,7 +492,7 @@ class TokenEfficientRenderer:
                     collapse_threshold,
                 )
 
-    def _get_summary_stats(self) -> Dict[str, Any]:
+    def _get_summary_stats(self) -> dict[str, Any]:
         """Calculate summary statistics."""
         total_files = len(self.files)
         total_symbols = sum(len(m.classes) + len(m.functions) for m in self.files.values())
@@ -659,7 +659,7 @@ class TokenEfficientRenderer:
 
         return "\n".join(lines)
 
-    def get_token_stats(self) -> Dict[str, Any]:
+    def get_token_stats(self) -> dict[str, Any]:
         """Compare token usage between JSON and tree output.
 
         Returns:
@@ -710,7 +710,7 @@ class TokenEfficientRenderer:
 
 
 def render_skeleton_tree(
-    file_nodes: Union[Dict[str, Any], str],
+    file_nodes: dict[str, Any] | str,
     max_depth: int = 0,
     show_meta: bool = True,
     project_name: str = None,

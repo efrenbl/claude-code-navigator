@@ -21,7 +21,6 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from .colors import get_colors
 
@@ -47,7 +46,7 @@ class LineReader:
         >>> print(f"Truncated: {symbol['truncated']}")
     """
 
-    def __init__(self, root_path: Optional[str] = None):
+    def __init__(self, root_path: str | None = None):
         """Initialize the line reader.
 
         Args:
@@ -88,8 +87,8 @@ class LineReader:
         return resolved
 
     def read_lines(
-        self, file_path: str, start: int, end: Optional[int] = None, context: int = 0
-    ) -> Dict:
+        self, file_path: str, start: int, end: int | None = None, context: int = 0
+    ) -> dict:
         """Read specific lines from a file.
 
         Args:
@@ -147,8 +146,8 @@ class LineReader:
         }
 
     def read_ranges(
-        self, file_path: str, ranges: List[Tuple[int, int]], context: int = 0, collapse_gap: int = 5
-    ) -> Dict:
+        self, file_path: str, ranges: list[tuple[int, int]], context: int = 0, collapse_gap: int = 5
+    ) -> dict:
         """Read multiple line ranges from a file efficiently.
 
         Intelligently merges overlapping or close ranges to minimize
@@ -239,7 +238,7 @@ class LineReader:
         end: int,
         include_context: bool = True,
         max_lines: int = 100,
-    ) -> Dict:
+    ) -> dict:
         """Read a symbol (function, class, etc.) with smart truncation.
 
         For large symbols, shows signature + beginning + ... + end.
@@ -353,7 +352,7 @@ class LineReader:
 
     def search_in_file(
         self, file_path: str, pattern: str, context: int = 2, max_matches: int = 10
-    ) -> Dict:
+    ) -> dict:
         """Search for a pattern in a file and return matching lines with context.
 
         Args:
@@ -413,7 +412,7 @@ class LineReader:
 
 
 def format_output(
-    result: Dict, style: str = "json", compact: bool = False, no_color: bool = False
+    result: dict, style: str = "json", compact: bool = False, no_color: bool = False
 ) -> str:
     """Format the output for display.
 

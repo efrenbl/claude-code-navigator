@@ -22,7 +22,7 @@ Installation:
 """
 
 import sys
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -80,10 +80,10 @@ class JavaScriptAnalyzer:
         self.source = source
         self.is_jsx = is_jsx
         self.lines = source.split("\n")
-        self.symbols: List[Symbol] = []
-        self._current_class: Optional[str] = None
+        self.symbols: list[Symbol] = []
+        self._current_class: str | None = None
 
-    def analyze(self) -> List[Symbol]:
+    def analyze(self) -> list[Symbol]:
         """Parse and analyze the file.
 
         Returns:
@@ -145,7 +145,7 @@ class JavaScriptAnalyzer:
         """
         return self.source[node.start_byte : node.end_byte]
 
-    def _get_identifier_name(self, node: "Node") -> Optional[str]:
+    def _get_identifier_name(self, node: "Node") -> str | None:
         """Get the identifier name from a node.
 
         Args:
@@ -381,7 +381,7 @@ class TypeScriptAnalyzer(JavaScriptAnalyzer):
         super().__init__(file_path, source, is_jsx=is_tsx)
         self.is_tsx = is_tsx
 
-    def analyze(self) -> List[Symbol]:
+    def analyze(self) -> list[Symbol]:
         """Parse and analyze the file.
 
         Returns:

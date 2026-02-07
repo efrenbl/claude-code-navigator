@@ -21,7 +21,6 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 from .code_navigator import DEFAULT_IGNORE_PATTERNS, LANGUAGE_EXTENSIONS, CodeNavigator
 from .colors import get_colors
@@ -49,7 +48,7 @@ class CodenavWatcher:
         self,
         root_path: str,
         output_path: str = ".codenav.json",
-        ignore_patterns: List[str] = None,
+        ignore_patterns: list[str] = None,
         debounce: float = 1.0,
         git_only: bool = False,
         use_gitignore: bool = False,
@@ -84,12 +83,12 @@ class CodenavWatcher:
         self.no_color = no_color
 
         self._running = False
-        self._file_hashes: Dict[str, str] = {}
+        self._file_hashes: dict[str, str] = {}
         self._last_change_time: float = 0
         self._pending_update = False
         self._colors = get_colors(no_color=no_color)
 
-    def _get_watched_files(self) -> Set[Path]:
+    def _get_watched_files(self) -> set[Path]:
         """Get all files that should be watched.
 
         Returns:
@@ -136,7 +135,7 @@ class CodenavWatcher:
 
         return False
 
-    def _hash_file(self, file_path: Path) -> Optional[str]:
+    def _hash_file(self, file_path: Path) -> str | None:
         """Calculate hash of a file's content.
 
         Args:
@@ -170,7 +169,7 @@ class CodenavWatcher:
             True if changes were detected.
         """
         current_files = self._get_watched_files()
-        current_hashes: Dict[str, str] = {}
+        current_hashes: dict[str, str] = {}
 
         for file_path in current_files:
             try:

@@ -16,7 +16,6 @@ Example:
 """
 
 import json
-from typing import List
 
 __version__ = "1.3.0"
 
@@ -311,7 +310,7 @@ def generate_zsh_completion() -> str:
     return ZSH_COMPLETION_TEMPLATE
 
 
-def get_symbols_from_map(map_path: str, limit: int = 100) -> List[str]:
+def get_symbols_from_map(map_path: str, limit: int = 100) -> list[str]:
     """Extract symbol names from a code map for completion.
 
     Args:

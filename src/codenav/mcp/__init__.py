@@ -8,13 +8,14 @@ Usage:
     # Start the server
     python -m codenav.mcp
 
-    # Or use the CLI
-    codenav mcp-server
+    # Or use the entry point
+    codenav-mcp
 """
 
-from .server import create_server, main, run_server
+from .server import create_server, main, mcp, run_server
 
 __all__ = [
+    "mcp",
     "create_server",
     "run_server",
     "main",

@@ -1,45 +1,33 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python 3.8+">
+  <img src="https://img.shields.io/badge/MCP-1.0+-blue.svg" alt="MCP 1.0+">
+  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
   <img src="https://img.shields.io/badge/version-2.0.0-orange.svg" alt="Version 2.0.0">
-  <img src="https://github.com/efrenbl/code-navigator/actions/workflows/ci.yml/badge.svg" alt="CI Status">
 </p>
 
 <h1 align="center">🧭 Code Navigator</h1>
 
 <p align="center">
-  <strong>Reduce token usage by 97% when working with large codebases in any AI coding assistant</strong>
+  <strong>An MCP server for token-efficient code navigation</strong>
 </p>
 
 <p align="center">
-  <em>Pre-index your codebase locally. Search symbols instantly. Read only what you need.</em>
+  <em>Reduce token usage by 97% when exploring large codebases with Claude</em>
 </p>
 
 ---
 
-## 🎯 The Problem
+## What is Code Navigator?
 
-When using AI coding assistants (Claude Code, Cursor, VS Code + AI, etc.) with large codebases, **reading entire files burns through tokens fast**:
-
-| Codebase Size | Traditional Approach | Token Cost |
-|--------------|---------------------|------------|
-| 100 files | Read relevant files | ~150,000 tokens |
-| 500 files | Read relevant files | ~750,000 tokens |
-| 1000+ files | Read relevant files | 2,000,000+ tokens |
-
-**One bug fix shouldn't cost you thousands of tokens just to find the right function.**
-
-## 💡 The Solution
-
-Code Navigator creates a lightweight index of your codebase **locally**, enabling:
+Code Navigator is a **Model Context Protocol (MCP) server** that helps AI assistants like Claude explore codebases efficiently. Instead of reading entire files, it provides:
 
 - **Instant symbol search** - Find functions, classes, methods by name
-- **Surgical reads** - Load only the exact lines you need (not entire files)
+- **Surgical reads** - Load only the exact lines you need
 - **Dependency awareness** - See what calls what without reading everything
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    WITHOUT THIS TOOL                        │
+│                    WITHOUT CODE NAVIGATOR                   │
 ├─────────────────────────────────────────────────────────────┤
 │  User: "Fix the payment bug"                                │
 │                                                             │
@@ -52,14 +40,14 @@ Code Navigator creates a lightweight index of your codebase **locally**, enablin
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                     WITH THIS TOOL                          │
+│                     WITH CODE NAVIGATOR                     │
 ├─────────────────────────────────────────────────────────────┤
 │  User: "Fix the payment bug"                                │
 │                                                             │
-│  1. Search: "payment" → payments.py:45-89                   │
+│  1. codenav_search("payment") → payments.py:45-89           │
 │     Cost: ~100 tokens                                       │
 │                                                             │
-│  2. Read: lines 45-89 only                                  │
+│  2. codenav_read(payments.py, 45, 89)                       │
 │     Cost: ~400 tokens                                       │
 │  ─────────────────────────────────────────────              │
 │  Total:                               500 tokens            │
@@ -68,428 +56,159 @@ Code Navigator creates a lightweight index of your codebase **locally**, enablin
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Quick Start (< 2 minutes)
-
-### Recommended: npx skills (Auto-configures everything)
-
-```bash
-npx skills add github:efrenbl/code-navigator
-```
-
-This automatically:
-- Installs the Python package
-- Configures MCP server for Claude Code
-- Copies skill files to ~/.claude/skills/
-
-### Alternative: Interactive Script
-
-```bash
-curl -sL https://raw.githubusercontent.com/efrenbl/code-navigator/main/skills/code-navigator/scripts/install.sh | bash
-```
-
-### Advanced: Manual pip Installation
-
-```bash
-pip install code-navigator
-# Then manually configure MCP in ~/.claude/settings.json
-```
-
-### Generate Your Code Map
-
-```bash
-# Navigate to your project
-cd /path/to/your/project
-
-# Generate the index (one-time, ~10 seconds for most projects)
-codenav map .
-
-# Update only changed files (much faster for large codebases)
-codenav map . --incremental
-```
-
-This creates a `.codenav.json` file (~1-5% of your codebase size).
-
-### Search and Read
-
-```bash
-# Find a function
-codenav search "process_payment"
-
-# Read only the lines you need
-codenav read src/payments.py 45-89
-
-# Get codebase statistics
-codenav stats
-```
-
-**That's it!** You're now saving 90%+ tokens on every code exploration.
-
 ---
 
-## 🤖 Using with AI Assistants
+## Quick Start
 
-This tool integrates seamlessly with multiple AI coding assistants. Install the skill and let your assistant handle everything automatically.
-
-### Installation as Skill
-
-This project follows the **SKILL.md standard** for maximum compatibility with Claude Code, Cursor, VS Code, and other agent ecosystems.
+### 1. Install
 
 ```bash
-# Option 1: Copy skill folder directly (recommended)
-# For a specific project
-cp -r skills/code-navigator .claude/skills/
-
-# For all your projects (personal)
-cp -r skills/code-navigator ~/.claude/skills/
-
-# Option 2: Use the packaged .skill file
-# For a specific project
-mkdir -p .claude/skills
-unzip code-navigator.skill -d .claude/skills/
-
-# For all your projects (personal)
-mkdir -p ~/.claude/skills
-unzip code-navigator.skill -d ~/.claude/skills/
+pip install codenav
 ```
 
-**Skill Structure (SKILL.md Standard):**
-```
-skills/code-navigator/
-├── SKILL.md           # Main skill definition with YAML frontmatter
-├── references/        # On-demand documentation
-│   ├── api-reference.md
-│   ├── cli-usage.md
-│   └── ...
-├── scripts/           # Executable scripts
-└── assets/            # Templates and resources
-```
+### 2. Configure Claude Desktop
 
-### Automatic Activation
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-Once installed, your AI assistant activates the skill automatically when you mention:
-- "map the code" / "generate codenav"
-- "optimize tokens"
-- "find the function X"
-- "search for class Y"
-
-### Example Session
-
-```bash
-cd /your/project
-
-# In any AI assistant (Claude Code, Cursor, etc.):
-> Map this project to optimize tokens
-
-AI: [Runs codenav map -> creates .codenav.json]
-    Map generated: 45 files, 303 symbols
-
-> Find the function that handles payments
-
-AI: [Runs codenav search "payment"]
-    Found: process_payment in src/billing.py:45-89
-
-> Show me that function
-
-AI: [Runs codenav read src/billing.py 45-89]
-    [Shows only lines 45-89, not the entire file]
-```
-
----
-
-## 📖 Detailed Usage
-
-### Unified CLI (`codenav`)
-
-The recommended way to use this tool is via the unified `codenav` command:
-
-```bash
-codenav map .                           # Generate code map
-codenav map . --incremental             # Update only changed files
-codenav search "UserService"            # Search for symbols
-codenav read src/api.py 45-60           # Read specific lines
-codenav stats                           # Show codebase statistics
-```
-
-### 1. Generating the Code Map
-
-```bash
-# Basic usage
-codenav map /your/project
-
-# With custom output location
-codenav map /your/project -o custom-map.json
-
-# Incremental update (only re-analyze changed files)
-codenav map /your/project --incremental
-
-# Exclude patterns
-codenav map /your/project -i "test_*.py" "migrations/"
-
-# Compact JSON output
-codenav map /your/project --compact
-```
-
-**Output:** A `.codenav.json` containing:
-- All functions, classes, methods with exact line numbers
-- Signatures and truncated docstrings
-- Dependency graph (what calls what)
-- File hashes for change detection
-
-### 2. Searching for Code
-
-```bash
-# Search by symbol name (fuzzy matching enabled)
-codenav search "UserService"
-
-# Filter by type
-codenav search "User" --type class
-codenav search "validate" --type function
-
-# Search within specific files
-codenav search "handler" --file "api/"
-
-# Show file structure (all symbols in a file)
-codenav search --structure src/models/user.py
-
-# Find dependencies
-codenav search --deps "calculate_total"
-
-# Codebase statistics
-codenav stats
-```
-
-**Example output:**
-```json
-[{
-  "name": "process_payment",
-  "type": "function",
-  "file": "src/billing/payments.py",
-  "lines": [45, 89],
-  "signature": "def process_payment(user_id: int, amount: Decimal) -> PaymentResult",
-  "docstring": "Process a payment for the given user...",
-  "score": 1.0
-}]
-```
-
-### 3. Reading Specific Lines
-
-```bash
-# Read a single range
-codenav read src/api.py 45-60
-
-# Read multiple ranges (intelligently merged)
-codenav read src/api.py "10-20,45-60,100-110"
-
-# Add context lines before/after
-codenav read src/api.py 45-60 -c 3
-
-# Smart symbol reading (auto-truncates large functions)
-codenav read src/api.py 45-150 --symbol --max-lines 50
-
-# Search for pattern in file
-codenav read src/api.py --search "def process"
-
-# Human-readable output
-codenav read src/api.py 45-60 -o code
-```
-
-**Example output (JSON):**
 ```json
 {
-  "file": "src/billing/payments.py",
-  "range": [45, 89],
-  "truncated": false,
-  "lines": [
-    {"num": 45, "content": "def process_payment(user_id, amount):", "in_range": true},
-    {"num": 46, "content": "    \"\"\"Process a payment.\"\"\"", "in_range": true}
-  ]
+  "mcpServers": {
+    "codenav": {
+      "command": "codenav-mcp"
+    }
+  }
 }
 ```
 
-**Example output (code format):**
+### 3. Configure Claude Code (VS Code)
+
+Add to your VS Code `settings.json`:
+
+```json
+{
+  "claude.mcpServers": {
+    "codenav": {
+      "command": "codenav-mcp"
+    }
+  }
+}
 ```
-# src/billing/payments.py
-> 45 | def process_payment(user_id, amount):
-> 46 |     """Process a payment."""
-> 47 |     validate_amount(amount)
+
+### 4. Use It
+
+In Claude, just ask to explore your codebase:
+
 ```
+"Scan this project and find the payment function"
+"Show me the architecture of this codebase"
+"What files import the UserService class?"
+```
+
+Claude will automatically use the Code Navigator tools to explore efficiently.
 
 ---
 
-### 4. Git Integration
+## Available Tools
 
-```bash
-# Only scan git-tracked files (ignores untracked files)
-codenav map . --git-only
-
-# Respect .gitignore patterns
-codenav map . --use-gitignore
-
-# Show symbols in files changed since a commit
-codenav search --since-commit HEAD~5
-codenav search --since-commit main
-```
-
-### 5. Stale Detection
-
-```bash
-# Check if code map is stale (files changed since generation)
-codenav search --check-stale
-
-# Warn about stale files before showing search results
-codenav search "payment" --warn-stale
-```
-
-### 6. Watch Mode
-
-Automatically update the code map when files change:
-
-```bash
-# Watch for changes with default settings
-codenav watch /path/to/project
-
-# With custom options
-codenav watch . -o .codenav.json --debounce 2.0 --git-only
-```
-
-### 7. Export Formats
-
-Export your code map to different formats for documentation:
-
-```bash
-# Export to Markdown
-codenav export -f markdown -o docs/codebase.md
-
-# Export to interactive HTML
-codenav export -f html -o docs/codebase.html
-
-# Export to GraphViz (dependency graph)
-codenav export -f graphviz -o docs/deps.dot
-dot -Tpng docs/deps.dot -o docs/deps.png
-```
-
-### 8. Shell Completion
-
-Generate autocompletion for your shell:
-
-```bash
-# Bash
-codenav completion bash > ~/.bash_completion.d/codenav
-source ~/.bash_completion.d/codenav
-
-# Zsh
-codenav completion zsh > ~/.zfunc/_codenav
-
-# Or source directly
-eval "$(codenav completion bash)"
-```
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `codenav_scan` | Index codebase | First step for any new project |
+| `codenav_search` | Find symbols | Looking for specific function/class |
+| `codenav_read` | Read lines | After finding symbol location |
+| `codenav_stats` | Codebase overview | Understanding project size |
+| `codenav_get_hubs` | Find central files | Architecture analysis |
+| `codenav_get_structure` | File outline | Before reading a file |
+| `codenav_get_dependencies` | Import graph | Understanding coupling |
 
 ---
 
-## 🔄 Typical Workflow
-
-**User:** "Fix the bug in the payment processing function"
-
-```bash
-# Step 1: Search for the function
-$ codenav search "payment" --type function
-
-[{"name": "process_payment", "file": "src/billing/payments.py", "lines": [45, 89]}]
-
-# Step 2: Read only that function
-$ codenav read src/billing/payments.py 45-89 --symbol -o code
-
-# src/billing/payments.py
-> 45 | def process_payment(user_id: int, amount: Decimal) -> PaymentResult:
-> 46 |     """Process a payment for the given user."""
-> 47 |     if amount <= 0:
-> 48 |         raise ValueError("Amount must be positive")
-...
-
-# Step 3: Make your fix using exact line numbers
-# Edit line 47-48 to fix the validation logic
-```
-
-**Result:** Fixed the bug while reading only 45 lines instead of 500+ lines across multiple files.
-
----
-
-## 📊 Performance Benchmarks
-
-Tested on real-world open source projects:
-
-| Project | Files | Symbols | Map Size | Map Time | Search Time |
-|---------|-------|---------|----------|----------|-------------|
-| Flask | 142 | 1,847 | 89 KB | 0.8s | <10ms |
-| Django | 2,156 | 28,493 | 1.2 MB | 8.2s | <15ms |
-| requests | 47 | 412 | 23 KB | 0.3s | <5ms |
-| numpy | 1,893 | 19,284 | 980 KB | 6.1s | <12ms |
-
-**Token savings in practice:**
-- Small projects (50-100 files): 85-90% reduction
-- Medium projects (100-500 files): 92-96% reduction
-- Large projects (500+ files): 97-99% reduction
-
----
-
-## 🗺️ Architecture
+## How It Works
 
 ```mermaid
 flowchart TB
-    subgraph LOCAL["🖥️ Local Process (One-time)"]
-        A[("📁 Codebase\n500+ files")] --> B["🔍 code_navigator.py\nAST Analysis"]
-        B --> C[("📊 .codenav.json\n~50KB index")]
+    subgraph SCAN["Step 1: Scan (one-time)"]
+        A[(Codebase)] --> B[codenav_scan]
+        B --> C[.codenav.json index]
     end
 
-    subgraph CLAUDE["🤖 Claude Code Session"]
-        D["User Request:\n'Fix bug in payment function'"]
-
-        subgraph SEARCH["Step 1: Search (~100 tokens)"]
-            E["code_search.py\n'payment' --type function"]
-            F["Result:\npayments.py:45-89"]
-        end
-
-        subgraph READ["Step 2: Read (~400 tokens)"]
-            G["line_reader.py\npayments.py 45-89 --symbol"]
-            H["Only the function\n(not entire file)"]
-        end
-
-        subgraph EDIT["Step 3: Edit"]
-            I["Make precise changes\nusing line numbers"]
-        end
-
-        D --> E
-        E --> F
-        F --> G
-        G --> H
-        H --> I
+    subgraph USE["Step 2: Use"]
+        D[codenav_search] --> E[file:line locations]
+        E --> F[codenav_read]
+        F --> G[Only needed code]
     end
 
-    C -.->|"Loaded once"| SEARCH
-
-    subgraph SAVINGS["💰 Token Savings"]
-        J["Traditional: ~15,000 tokens\n(read whole file)"]
-        K["With Skill: ~500 tokens\n(targeted read)"]
-        L["Savings: 97%"]
-    end
-
-    style LOCAL fill:#e1f5fe
-    style CLAUDE fill:#fff3e0
-    style SAVINGS fill:#e8f5e9
-    style C fill:#fff9c4
+    C --> D
 ```
 
-### Components
-
-| Component | Purpose | Input | Output |
-|-----------|---------|-------|--------|
-| `code_navigator.py` | Index codebase | Directory path | `.codenav.json` |
-| `code_search.py` | Find symbols | Query + filters | JSON results with locations |
-| `line_reader.py` | Read specific lines | File + line range | Code content |
+1. **Scan once** - Creates `.codenav.json` with all symbols indexed
+2. **Search by name** - Find functions/classes/methods instantly
+3. **Read surgically** - Load only the lines you need
 
 ---
 
-## 🌐 Supported Languages
+## CLI Usage (Secondary)
+
+While the primary use case is via MCP, you can also use the CLI directly:
+
+```bash
+# Generate code map
+codenav map .
+
+# Search for symbols
+codenav search "process_payment"
+
+# Read specific lines
+codenav read src/payments.py 45-89
+
+# Get codebase stats
+codenav stats
+```
+
+---
+
+## Configuration
+
+### Alternative: Using uv or pipx
+
+```bash
+# Using uv
+uv pip install codenav
+
+# Using pipx (isolated environment)
+pipx install codenav
+```
+
+### Claude Desktop with explicit Python path
+
+If you have multiple Python installations:
+
+```json
+{
+  "mcpServers": {
+    "codenav": {
+      "command": "python",
+      "args": ["-m", "codenav.mcp"]
+    }
+  }
+}
+```
+
+### With workspace directory
+
+```json
+{
+  "mcpServers": {
+    "codenav": {
+      "command": "codenav-mcp",
+      "args": ["--workspace", "/path/to/your/project"]
+    }
+  }
+}
+```
+
+---
+
+## Supported Languages
 
 | Language | Analysis Type | Quality |
 |----------|---------------|---------|
@@ -503,120 +222,41 @@ flowchart TB
 | Ruby | Regex-based | ⭐⭐⭐ |
 | PHP | Regex-based | ⭐⭐⭐ |
 
-*JavaScript/TypeScript use tree-sitter AST when installed (`pip install code-navigator[ast]`), with automatic fallback to regex.
-
-Python receives full AST analysis with accurate line ranges. JS/TS with tree-sitter detect functions, arrow functions, classes, methods, interfaces, types, and enums.
+*Install tree-sitter support: `pip install codenav[ast]`
 
 ---
 
-## 🔧 Installation Options
+## Performance
 
-### Option 1: pip (Recommended)
+Tested on real-world open source projects:
 
-```bash
-# Basic install (Python AST, regex for other languages)
-pip install code-navigator
+| Project | Files | Symbols | Map Size | Map Time |
+|---------|-------|---------|----------|----------|
+| Flask | 142 | 1,847 | 89 KB | 0.8s |
+| Django | 2,156 | 28,493 | 1.2 MB | 8.2s |
+| requests | 47 | 412 | 23 KB | 0.3s |
 
-# With tree-sitter AST support for JavaScript/TypeScript
-pip install code-navigator[ast]
-```
-
-### Option 2: pipx (Isolated environment)
-
-```bash
-pipx install code-navigator
-```
-
-### Option 3: From source
-
-```bash
-git clone https://github.com/efrenbl/code-navigator.git
-cd code-navigator
-pip install -e .
-```
-
-### Option 4: As Claude Code Skill
-
-Copy the skill folder to your Claude Code skills directory:
-
-```bash
-# Copy skill folder (SKILL.md standard)
-cp -r skills/code-navigator ~/.claude/skills/
-
-# Or use the packaged .skill file
-unzip code-navigator.skill -d ~/.claude/skills/
-```
-
-### Requirements
-
-- Python 3.8+
-- No external dependencies (uses only standard library)
+**Token savings:**
+- Small projects (50-100 files): 85-90% reduction
+- Medium projects (100-500 files): 92-96% reduction
+- Large projects (500+ files): 97-99% reduction
 
 ---
 
-## ❓ FAQ
+## Requirements
 
-<details>
-<summary><strong>When should I regenerate the code map?</strong></summary>
-
-Regenerate when:
-- Adding new files to the project
-- After major refactoring
-- When search results seem stale
-
-The map is fast to regenerate (usually under 10 seconds).
-</details>
-
-<details>
-<summary><strong>Does this work with all programming languages?</strong></summary>
-
-Python gets full AST analysis. JavaScript, TypeScript, Java, Go, Rust, C/C++, Ruby, and PHP use regex-based analysis that works well for most code patterns.
-</details>
-
-<details>
-<summary><strong>How large is the .codenav.json file?</strong></summary>
-
-Typically 1-5% of your source code size. A 10 MB codebase produces roughly a 100-500 KB map.
-</details>
-
-<details>
-<summary><strong>Can I use this outside of Claude Code?</strong></summary>
-
-Yes! The tools are standalone Python scripts that work in any terminal. They're useful for any situation where you need to quickly locate and read specific code.
-</details>
-
-<details>
-<summary><strong>What about binary files and generated code?</strong></summary>
-
-The mapper automatically ignores common patterns like `node_modules`, `__pycache__`, `dist`, `build`, etc. Use `-i` to add custom ignore patterns.
-</details>
+- Python 3.10+
+- MCP SDK 1.0+
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Quick contribution ideas:
-- Add AST support for more languages (Go, Rust, Java)
-- Improve regex patterns for existing languages
-- Create IDE integrations (VS Code, JetBrains)
-
----
-
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments
-
-Built for the AI coding community to make AI-assisted coding more efficient and cost-effective. Works with Claude Code, Cursor, VS Code, and any terminal.
-
----
-
 <p align="center">
   <strong>Stop burning tokens reading entire files.</strong><br>
-  <em>Map once, search instantly, read surgically.</em>
+  <em>Scan once, search instantly, read surgically.</em>
 </p>

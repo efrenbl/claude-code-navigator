@@ -23,7 +23,7 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from .colors import get_colors
 
@@ -47,7 +47,7 @@ class BaseExporter(ABC):
         self.map_path = map_path
         self.code_map = self._load_map()
 
-    def _load_map(self) -> Dict[str, Any]:
+    def _load_map(self) -> dict[str, Any]:
         """Load the code map from file."""
         with open(self.map_path, encoding="utf-8") as f:
             return json.load(f)

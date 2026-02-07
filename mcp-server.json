@@ -53,6 +53,11 @@
       "category": "file-reading"
     },
     {
+      "name": "codenav_stats",
+      "description": "Get statistics about the indexed codebase (files, symbols, types)",
+      "category": "code-analysis"
+    },
+    {
       "name": "codenav_get_hubs",
       "description": "Identify architectural hub files - the most important files",
       "category": "architecture"

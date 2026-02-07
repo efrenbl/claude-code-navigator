@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
 
 class ResolveStrategy(Enum):
@@ -53,9 +53,9 @@ class ResolveResult:
         confidence: 0.0-1.0 indicating resolution confidence.
     """
 
-    path: Optional[str]
+    path: str | None
     strategy: ResolveStrategy
-    candidates: List[str] = field(default_factory=list)
+    candidates: list[str] = field(default_factory=list)
     original_import: str = ""
     confidence: float = 1.0
 
@@ -78,7 +78,7 @@ class AliasConfig:
     """
 
     pattern: str
-    targets: List[str]
+    targets: list[str]
     is_wildcard: bool = False
     prefix: str = ""
     suffix: str = ""
@@ -93,7 +93,7 @@ class AliasConfig:
         else:
             self.prefix = self.pattern
 
-    def matches(self, import_path: str) -> Optional[str]:
+    def matches(self, import_path: str) -> str | None:
         """Check if import matches this alias, return captured wildcard portion.
 
         Args:
@@ -120,7 +120,7 @@ class AliasConfig:
 
         return wildcard_part
 
-    def apply(self, wildcard_part: str) -> List[str]:
+    def apply(self, wildcard_part: str) -> list[str]:
         """Apply the alias transformation.
 
         Args:
@@ -217,7 +217,7 @@ class ImportResolver:
     def __init__(
         self,
         root: str,
-        aliases: Dict[str, List[str]] = None,
+        aliases: dict[str, list[str]] = None,
         base_url: str = "",
     ):
         """Initialize the import resolver.
@@ -235,8 +235,8 @@ class ImportResolver:
             raise ValueError(f"Root path does not exist: {self.root}")
 
         self.base_url = base_url
-        self.aliases: List[AliasConfig] = []
-        self.file_index: Dict[str, Set[str]] = {}
+        self.aliases: list[AliasConfig] = []
+        self.file_index: dict[str, set[str]] = {}
         self.module_name = ""
         self._index_built = False
 
@@ -245,7 +245,7 @@ class ImportResolver:
             for pattern, targets in aliases.items():
                 self.add_alias(pattern, targets)
 
-    def add_alias(self, pattern: str, targets: Union[str, List[str]]) -> "ImportResolver":
+    def add_alias(self, pattern: str, targets: str | list[str]) -> "ImportResolver":
         """Add a path alias configuration.
 
         Args:
@@ -314,8 +314,8 @@ class ImportResolver:
         return self
 
     def _parse_tsconfig(
-        self, config_path: Path, seen: Set[str] = None
-    ) -> Tuple[Dict[str, List[str]], str]:
+        self, config_path: Path, seen: set[str] = None
+    ) -> tuple[dict[str, list[str]], str]:
         """Parse tsconfig.json, following extends directive.
 
         Args:
@@ -420,10 +420,10 @@ class ImportResolver:
 
         return self
 
-    def _simple_toml_parse(self, content: str) -> Dict[str, Any]:
+    def _simple_toml_parse(self, content: str) -> dict[str, Any]:
         """Minimal TOML parser for import_resolver config."""
         # This is a very basic parser for the specific section we need
-        result: Dict[str, Any] = {"tool": {"import_resolver": {"aliases": {}}}}
+        result: dict[str, Any] = {"tool": {"import_resolver": {"aliases": {}}}}
 
         in_section = False
         for line in content.split("\n"):
@@ -447,7 +447,7 @@ class ImportResolver:
 
         return result
 
-    def build_index(self, languages: List[str] = None) -> "ImportResolver":
+    def build_index(self, languages: list[str] = None) -> "ImportResolver":
         """Build file index for fast lookups.
 
         Args:
@@ -829,9 +829,9 @@ class ImportResolver:
     def resolve_all(
         self,
         source_file: str,
-        imports: List[str],
+        imports: list[str],
         language: str = None,
-    ) -> Dict[str, ResolveResult]:
+    ) -> dict[str, ResolveResult]:
         """Resolve multiple imports at once.
 
         Args:
@@ -850,9 +850,9 @@ def resolve_import_path(
     source_file: str,
     import_string: str,
     root_dir: str,
-    aliases: Dict[str, List[str]] = None,
+    aliases: dict[str, list[str]] = None,
     base_url: str = "",
-) -> Optional[str]:
+) -> str | None:
     """Resolve an import path to an actual file.
 
     This is a convenience function for simple use cases. For repeated

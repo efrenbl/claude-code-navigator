@@ -1,59 +1,28 @@
 #!/usr/bin/env python3
-"""Codenav MCP Server - Exposes code navigation as MCP tools.
+"""Codenav MCP Server - Token-efficient code navigation for AI assistants.
 
-This server implements the Model Context Protocol (MCP) to expose
-Codenav's code navigation capabilities to AI assistants.
-
-Features:
-    - Tools for scanning, searching, and navigating codebases
-    - Resources for exposing dependency graphs and code maps
-    - Token-optimized responses for efficient LLM consumption
+This server implements the Model Context Protocol (MCP) using FastMCP to expose
+Codenav's code navigation capabilities to Claude Desktop, Claude Code, and
+other MCP-compatible AI assistants.
 
 Usage:
-    python -m codenav.mcp.server
-    codenav mcp-server --port 8080
+    python -m codenav.mcp
+    codenav-mcp
 """
 
-import asyncio
 import json
 import logging
 import os
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Optional
 
-# MCP SDK imports
-try:
-    from mcp.server import Server
-    from mcp.server.stdio import stdio_server
-    from mcp.types import (
-        GetPromptResult,
-        Prompt,
-        PromptArgument,
-        PromptMessage,
-        Resource,
-        TextContent,
-        Tool,
-    )
+from mcp.server.fastmcp import FastMCP
 
-    HAS_MCP = True
-except ImportError:
-    HAS_MCP = False
-    Server = None  # type: ignore[misc, assignment]
-
-# Codenav imports
 from ..code_navigator import CodeNavigator
 from ..code_search import CodeSearcher
 from ..line_reader import LineReader
 
 # Optional imports
-try:
-    from ..dependency_graph import DependencyGraph  # noqa: F401
-
-    HAS_GRAPH = True
-except ImportError:
-    HAS_GRAPH = False
-
 try:
     from ..token_efficient_renderer import TokenEfficientRenderer
 
@@ -64,242 +33,104 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
-# TOOL DEFINITIONS
+# SYSTEM PROMPT - Instructions for AI agents
 # ==============================================================================
 
-TOOLS: List[Dict[str, Any]] = [
-    {
-        "name": "codenav_scan",
-        "description": """Scan a codebase and generate a structural map with all symbols (classes, functions, methods).
+SYSTEM_PROMPT = """# Code Navigator - Token-Efficient Code Navigation
 
-USE THIS TOOL WHEN:
-- You need to understand the overall structure of a project
-- You're starting work on an unfamiliar codebase
-- You need to find all files and their symbols
+You have access to Code Navigator, an MCP server that helps you explore codebases efficiently while minimizing token usage.
 
-RETURNS: A token-efficient summary showing file tree with inline metadata about classes, functions, and architectural hubs.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Root directory to scan (absolute or relative path)",
-                },
-                "ignore_patterns": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Glob patterns to ignore (e.g., ['*.test.py', 'vendor/'])",
-                },
-                "git_only": {
-                    "type": "boolean",
-                    "description": "Only scan files tracked by git",
-                    "default": False,
-                },
-                "max_depth": {
-                    "type": "integer",
-                    "description": "Maximum directory depth to display (0=unlimited)",
-                    "default": 0,
-                },
-            },
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "codenav_search",
-        "description": """Search for symbols (functions, classes, methods) in a codebase by name or pattern.
+## Recommended Workflow
 
-USE THIS TOOL WHEN:
-- You need to find where a specific function/class is defined
-- You're looking for symbols matching a pattern (e.g., all handlers)
-- You need to understand what symbols exist in a file
+1. **Scan first** (`codenav_scan`): Generate a code map for the project. This creates `.codenav.json` which indexes all symbols.
+2. **Search by symbol** (`codenav_search`): Find functions, classes, methods by name or pattern. Returns file:line locations.
+3. **Read surgically** (`codenav_read`): Load only the specific lines you need, not entire files.
 
-RETURNS: Compact list of matching symbols with file:line locations and brief context.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query (name, pattern, or regex)",
-                },
-                "symbol_type": {
-                    "type": "string",
-                    "enum": ["function", "class", "method", "variable", "any"],
-                    "description": "Filter by symbol type",
-                    "default": "any",
-                },
-                "file_pattern": {
-                    "type": "string",
-                    "description": "Filter by file glob pattern (e.g., '*.py', 'src/**/*.ts')",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum results to return",
-                    "default": 20,
-                },
-                "path": {
-                    "type": "string",
-                    "description": "Root directory (uses current dir if not specified)",
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "codenav_read",
-        "description": """Read specific lines from a file with optional context.
+## Token-Efficiency Best Practices
 
-USE THIS TOOL WHEN:
-- You found a symbol and need to see its implementation
-- You need to read a specific section of code
-- You want to see code around a specific line
+- **Never read entire files** - Use `codenav_search` to find exact line ranges, then `codenav_read` with those ranges.
+- **Use `codenav_get_structure`** before reading a file to see what symbols it contains.
+- **Check `codenav_stats`** to understand codebase size before diving in.
+- **Use `codenav_get_hubs`** to identify the most important files to review first.
 
-RETURNS: The requested lines with line numbers, optimized for code review.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "file_path": {"type": "string", "description": "Path to the file to read"},
-                "start_line": {"type": "integer", "description": "First line to read (1-indexed)"},
-                "end_line": {"type": "integer", "description": "Last line to read (inclusive)"},
-                "context": {
-                    "type": "integer",
-                    "description": "Additional lines before/after the range",
-                    "default": 0,
-                },
-            },
-            "required": ["file_path", "start_line", "end_line"],
-        },
-    },
-    {
-        "name": "codenav_get_hubs",
-        "description": """Identify architectural hub files - the most important/central files in the codebase.
+## Auto-Detection
 
-USE THIS TOOL WHEN:
-- You need to understand the core architecture
-- You want to find the most critical files to review first
-- You're looking for entry points or central modules
+If you call search/stats/hubs/structure/dependencies without first scanning, and no `.codenav.json` exists, you'll get an error asking you to run `codenav_scan` first.
 
-RETURNS: Ranked list of hub files with import counts and brief description of their role.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Root directory to analyze"},
-                "top_n": {
-                    "type": "integer",
-                    "description": "Number of top hubs to return",
-                    "default": 10,
-                },
-                "min_imports": {
-                    "type": "integer",
-                    "description": "Minimum import count to be considered a hub",
-                    "default": 3,
-                },
-            },
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "codenav_get_dependencies",
-        "description": """Get the dependency graph for a file or the entire project.
+## Available Tools
 
-USE THIS TOOL WHEN:
-- You need to understand what a file imports/depends on
-- You want to see what files depend ON a specific file
-- You're analyzing the coupling between modules
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `codenav_scan` | Index codebase | First step for any new project |
+| `codenav_search` | Find symbols | Looking for specific function/class |
+| `codenav_read` | Read lines | After finding symbol location |
+| `codenav_stats` | Codebase overview | Understanding project size |
+| `codenav_get_hubs` | Find central files | Architecture analysis |
+| `codenav_get_structure` | File outline | Before reading a file |
+| `codenav_get_dependencies` | Import graph | Understanding coupling |
 
-RETURNS: Import/export relationships in a compact format showing dependencies.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Root directory or specific file to analyze",
-                },
-                "file": {
-                    "type": "string",
-                    "description": "Specific file to get dependencies for (optional)",
-                },
-                "direction": {
-                    "type": "string",
-                    "enum": ["imports", "imported_by", "both"],
-                    "description": "Direction of dependencies to show",
-                    "default": "both",
-                },
-                "depth": {
-                    "type": "integer",
-                    "description": "How many levels deep to traverse",
-                    "default": 1,
-                },
-            },
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "codenav_get_structure",
-        "description": """Get the structure of a specific file showing all its symbols.
+## Example Session
 
-USE THIS TOOL WHEN:
-- You need a quick overview of what's in a file
-- You want to see all classes/functions without reading the whole file
-- You're deciding which parts of a file to read in detail
+```
+User: "Fix the payment bug"
 
-RETURNS: Hierarchical list of symbols with types, line numbers, and signatures.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "file_path": {"type": "string", "description": "Path to the file to analyze"},
-                "include_private": {
-                    "type": "boolean",
-                    "description": "Include private symbols (starting with _)",
-                    "default": False,
-                },
-            },
-            "required": ["file_path"],
-        },
-    },
-]
+1. codenav_scan(path="/project")           # Index the codebase
+2. codenav_search(query="payment")         # Find: payments.py:45-89
+3. codenav_read(file_path="payments.py", start_line=45, end_line=89)  # Read only those lines
+4. Make targeted fix with exact line numbers
+```
+
+This approach uses ~500 tokens instead of ~15,000 tokens from reading entire files.
+"""
+
+# ==============================================================================
+# SERVER INITIALIZATION
+# ==============================================================================
+
+# Create FastMCP server with instructions
+mcp = FastMCP(
+    "codenav",
+    instructions=SYSTEM_PROMPT,
+)
+
+# Global handler instance (initialized per-session)
+_handler: Optional["CodenavToolHandler"] = None
+
+
+def get_handler() -> "CodenavToolHandler":
+    """Get or create the tool handler."""
+    global _handler
+    if _handler is None:
+        _handler = CodenavToolHandler()
+    return _handler
 
 
 # ==============================================================================
-# TOOL IMPLEMENTATIONS
+# TOOL HANDLER CLASS
 # ==============================================================================
 
 
 class CodenavToolHandler:
     """Handles execution of Codenav MCP tools."""
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         self.workspace_root = workspace_root or os.getcwd()
-        self._code_map_cache: Dict[str, Dict] = {}
-        self._navigator_cache: Dict[str, CodeNavigator] = {}
+        self._code_map_cache: dict[str, dict] = {}
+        self._navigator_cache: dict[str, CodeNavigator] = {}
 
-    def _validate_path(self, requested_path: str) -> str:
-        """Validate that requested path is within workspace root.
+    def _get_map_path(self, path: str) -> Path:
+        """Get the .codenav.json path for a directory."""
+        return Path(path) / ".codenav.json"
 
-        Args:
-            requested_path: The path to validate.
-
-        Returns:
-            The validated absolute path as a string.
-
-        Raises:
-            ValueError: If the path is outside the workspace or is a symlink.
-        """
-        try:
-            abs_requested = Path(requested_path).resolve()
-            abs_workspace = Path(self.workspace_root).resolve()
-
-            # Ensure path is within workspace
-            abs_requested.relative_to(abs_workspace)
-
-            # Prevent symlink escaping
-            if Path(requested_path).is_symlink():
-                raise ValueError("Symlinks not allowed for security")
-
-            return str(abs_requested)
-        except ValueError as e:
-            raise ValueError(
-                f"Path '{requested_path}' is outside workspace or invalid: {e}"
-            ) from None
+    def _check_map_exists(self, path: str) -> tuple[bool, str]:
+        """Check if .codenav.json exists and return helpful error if not."""
+        map_path = self._get_map_path(path)
+        if not map_path.exists():
+            return False, (
+                f"No .codenav.json found in {path}. "
+                "Run `codenav_scan` first to index the codebase."
+            )
+        return True, ""
 
     def _get_navigator(self, path: str) -> CodeNavigator:
         """Get or create a CodeNavigator for the given path."""
@@ -308,74 +139,166 @@ class CodenavToolHandler:
             self._navigator_cache[abs_path] = CodeNavigator(abs_path)
         return self._navigator_cache[abs_path]
 
-    def _get_code_map(self, path: str, force_rescan: bool = False) -> Dict:
-        """Get or generate a code map for the given path."""
+    def _get_code_map(self, path: str, force_rescan: bool = False) -> dict:
+        """Get or load a code map for the given path."""
         abs_path = os.path.abspath(path)
 
         # Check cache
         if not force_rescan and abs_path in self._code_map_cache:
             return self._code_map_cache[abs_path]
 
-        # Check for existing map file
-        map_file = Path(abs_path) / ".codenav.json"
-        if map_file.exists() and not force_rescan:
-            with open(map_file) as f:
+        # Load from file
+        map_path = self._get_map_path(abs_path)
+        if map_path.exists():
+            with open(map_path, encoding="utf-8") as f:
                 code_map = json.load(f)
                 self._code_map_cache[abs_path] = code_map
                 return code_map
 
-        # Generate new map
-        navigator = self._get_navigator(path)
-        code_map = navigator.scan()
-        self._code_map_cache[abs_path] = code_map
-        return code_map
+        return {}
 
-    async def handle_scan(self, arguments: Dict[str, Any]) -> str:
-        """Handle codenav_scan tool call."""
-        path = self._validate_path(arguments.get("path", self.workspace_root))
-        ignore_patterns = arguments.get("ignore_patterns", [])
-        git_only = arguments.get("git_only", False)
-        max_depth = arguments.get("max_depth", 0)
+    def _format_search_results_compact(self, results: list, limit: int) -> str:
+        """Format search results in compact single-line format."""
+        if not results:
+            return "No matching symbols found."
 
+        lines = [f"Found {len(results)} matches:"]
+
+        for r in results[:limit]:
+            # Compact format: file:L{start}-{end} [type] name
+            end_line = r.lines[1] if len(r.lines) > 1 else r.lines[0]
+            type_abbr = {"function": "fn", "class": "cls", "method": "mth"}.get(r.type, r.type[:3])
+            lines.append(f"{r.file}:L{r.lines[0]}-{end_line} [{type_abbr}] {r.name}")
+
+        if len(results) > limit:
+            lines.append(f"... +{len(results) - limit} more")
+
+        return "\n".join(lines)
+
+    def _format_hubs_compact(self, hubs: list) -> str:
+        """Format hub files in compact list format."""
+        if not hubs:
+            return "No hub files found."
+
+        lines = ["Architectural hubs (most imported):"]
+        for i, hub in enumerate(hubs, 1):
+            symbols_preview = ", ".join(hub.get("symbols", [])[:3])
+            if len(hub.get("symbols", [])) > 3:
+                symbols_preview += "..."
+            lines.append(f"{i}. {hub['file']} ({hub['imports']}← imports) [{symbols_preview}]")
+
+        return "\n".join(lines)
+
+    def _format_stats_compact(self, stats: dict) -> str:
+        """Format stats as compact key-value pairs."""
+        lines = [
+            f"root: {stats.get('root', 'unknown')}",
+            f"files: {stats.get('files', 0)}",
+            f"symbols: {stats.get('total_symbols', 0)}",
+        ]
+
+        by_type = stats.get("by_type", {})
+        if by_type:
+            type_parts = [f"{k}:{v}" for k, v in sorted(by_type.items())]
+            lines.append(f"by_type: {', '.join(type_parts)}")
+
+        if stats.get("generated_at"):
+            lines.append(f"generated: {stats['generated_at']}")
+
+        return "\n".join(lines)
+
+
+# ==============================================================================
+# MCP TOOLS
+# ==============================================================================
+
+
+@mcp.tool()
+def codenav_scan(
+    path: str,
+    ignore_patterns: list[str] | None = None,
+    git_only: bool = False,
+    max_depth: int = 0,
+) -> str:
+    """Scan a codebase and generate a structural map with all symbols.
+
+    Use this tool first when starting work on any codebase. It creates a
+    .codenav.json index file containing all functions, classes, and methods
+    with their exact line numbers.
+
+    Args:
+        path: Root directory to scan (absolute or relative path)
+        ignore_patterns: Glob patterns to ignore (e.g., ['*.test.py', 'vendor/'])
+        git_only: Only scan files tracked by git
+        max_depth: Maximum directory depth to display (0=unlimited)
+
+    Returns:
+        Token-efficient summary showing file tree with symbol metadata
+    """
+    handler = get_handler()
+
+    try:
+        abs_path = os.path.abspath(path)
         navigator = CodeNavigator(
-            path,
-            ignore_patterns=ignore_patterns,
+            abs_path,
+            ignore_patterns=ignore_patterns or [],
             git_only=git_only,
         )
         code_map = navigator.scan()
-        self._code_map_cache[os.path.abspath(path)] = code_map
+        handler._code_map_cache[abs_path] = code_map
 
         # Use token-efficient rendering if available
         if HAS_RENDERER:
-            renderer = TokenEfficientRenderer(code_map, root_path=path)
+            renderer = TokenEfficientRenderer(code_map, root_path=abs_path)
             return renderer.render_skeleton_tree(
                 max_depth=max_depth,
                 show_meta=True,
                 show_summary=True,
             )
         else:
-            # Fallback to compact JSON summary
-            return self._format_compact_summary(code_map, path)
+            # Compact summary fallback
+            files = code_map.get("files", {})
+            total_symbols = sum(len(f.get("symbols", [])) for f in files.values())
+            return f"Scanned {len(files)} files, found {total_symbols} symbols. Map saved to .codenav.json"
 
-    async def handle_search(self, arguments: Dict[str, Any]) -> str:
-        """Handle codenav_search tool call."""
-        query = arguments["query"]
-        symbol_type = arguments.get("symbol_type", "any")
-        file_pattern = arguments.get("file_pattern")
-        limit = arguments.get("limit", 20)
-        path = self._validate_path(arguments.get("path", self.workspace_root))
+    except Exception as e:
+        logger.exception(f"Error scanning {path}")
+        return f"Error: {e}"
 
-        # Ensure we have a code map
-        code_map = self._get_code_map(path)
 
-        # Create a temporary map file for CodeSearcher
-        map_path = Path(path) / ".codenav.json"
-        if not map_path.exists():
-            with open(map_path, "w", encoding="utf-8") as f:
-                json.dump(code_map, f)
-            # Set secure file permissions (owner read/write only)
-            os.chmod(map_path, 0o600)
+@mcp.tool()
+def codenav_search(
+    query: str,
+    symbol_type: str = "any",
+    file_pattern: str | None = None,
+    limit: int = 20,
+    path: str | None = None,
+) -> str:
+    """Search for symbols (functions, classes, methods) by name or pattern.
 
+    Use this after scanning to find where specific code is defined.
+    Returns compact file:line locations for efficient reading.
+
+    Args:
+        query: Search query (name, pattern, or regex)
+        symbol_type: Filter by type: 'function', 'class', 'method', 'variable', or 'any'
+        file_pattern: Filter by file glob pattern (e.g., '*.py', 'src/**/*.ts')
+        limit: Maximum results to return
+        path: Root directory (uses current dir if not specified)
+
+    Returns:
+        Compact list: file:L{start}-{end} [type] name
+    """
+    handler = get_handler()
+    search_path = os.path.abspath(path or handler.workspace_root)
+
+    # Check if map exists
+    exists, error_msg = handler._check_map_exists(search_path)
+    if not exists:
+        return error_msg
+
+    try:
+        map_path = handler._get_map_path(search_path)
         searcher = CodeSearcher(str(map_path))
 
         # Search based on type
@@ -390,161 +313,115 @@ class CodenavToolHandler:
 
             results = [r for r in results if fnmatch.fnmatch(r.file, file_pattern)]
 
-        # Format results compactly
-        return self._format_search_results(results, limit)
+        return handler._format_search_results_compact(results, limit)
 
-    async def handle_read(self, arguments: Dict[str, Any]) -> str:
-        """Handle codenav_read tool call."""
-        file_path = self._validate_path(arguments["file_path"])
-        start_line = arguments["start_line"]
-        end_line = arguments["end_line"]
-        context = arguments.get("context", 0)
+    except Exception as e:
+        logger.exception(f"Error searching for {query}")
+        return f"Error: {e}"
 
-        reader = LineReader(root_path=self.workspace_root)
+
+@mcp.tool()
+def codenav_read(
+    file_path: str,
+    start_line: int,
+    end_line: int,
+    context: int = 0,
+) -> str:
+    """Read specific lines from a file with optional context.
+
+    Use this after finding a symbol's location to read its implementation.
+    Much more token-efficient than reading entire files.
+
+    Args:
+        file_path: Path to the file to read
+        start_line: First line to read (1-indexed)
+        end_line: Last line to read (inclusive)
+        context: Additional lines before/after the range
+
+    Returns:
+        The requested lines with line numbers
+    """
+    handler = get_handler()
+
+    try:
+        reader = LineReader(root_path=handler.workspace_root)
         content = reader.read_lines(file_path, start_line, end_line, context=context)
-
         return content
 
-    async def handle_get_hubs(self, arguments: Dict[str, Any]) -> str:
-        """Handle codenav_get_hubs tool call."""
-        path = self._validate_path(arguments.get("path", self.workspace_root))
-        top_n = arguments.get("top_n", 10)
-        min_imports = arguments.get("min_imports", 3)
+    except Exception as e:
+        logger.exception(f"Error reading {file_path}")
+        return f"Error: {e}"
 
-        code_map = self._get_code_map(path)
 
-        # Calculate hub scores from the code map
-        hubs = self._calculate_hubs(code_map, min_imports)
+@mcp.tool()
+def codenav_stats(path: str | None = None) -> str:
+    """Get statistics about the indexed codebase.
 
-        # Sort and limit
-        hubs = sorted(hubs, key=lambda x: x["score"], reverse=True)[:top_n]
+    Shows file count, symbol count, and breakdown by type.
+    Useful for understanding project size before diving in.
 
-        # Format output
-        lines = ["# Architectural Hubs (most imported files)", ""]
-        for i, hub in enumerate(hubs, 1):
-            lines.append(f"{i}. **{hub['file']}** ({hub['imports']}← imports)")
-            if hub.get("symbols"):
-                lines.append(f"   Contains: {', '.join(hub['symbols'][:5])}")
+    Args:
+        path: Root directory (uses current dir if not specified)
 
-        if not hubs:
-            lines.append("No hub files found with the specified criteria.")
+    Returns:
+        Compact stats: files, symbols, breakdown by type
+    """
+    handler = get_handler()
+    stats_path = os.path.abspath(path or handler.workspace_root)
 
-        return "\n".join(lines)
+    # Check if map exists
+    exists, error_msg = handler._check_map_exists(stats_path)
+    if not exists:
+        return error_msg
 
-    async def handle_get_dependencies(self, arguments: Dict[str, Any]) -> str:
-        """Handle codenav_get_dependencies tool call."""
-        path = self._validate_path(arguments.get("path", self.workspace_root))
-        file = arguments.get("file")
-        if file:
-            file = self._validate_path(file)
-        direction = arguments.get("direction", "both")
-        depth = arguments.get("depth", 1)
+    try:
+        map_path = handler._get_map_path(stats_path)
+        searcher = CodeSearcher(str(map_path))
+        stats = searcher.get_stats()
+        return handler._format_stats_compact(stats)
 
-        code_map = self._get_code_map(path)
+    except Exception as e:
+        logger.exception(f"Error getting stats for {stats_path}")
+        return f"Error: {e}"
 
-        if file:
-            return self._format_file_dependencies(code_map, file, direction, depth)
-        else:
-            return self._format_project_dependencies(code_map, direction)
 
-    async def handle_get_structure(self, arguments: Dict[str, Any]) -> str:
-        """Handle codenav_get_structure tool call."""
-        file_path = self._validate_path(arguments["file_path"])
-        include_private = arguments.get("include_private", False)
+@mcp.tool()
+def codenav_get_hubs(
+    path: str,
+    top_n: int = 10,
+    min_imports: int = 3,
+) -> str:
+    """Identify architectural hub files - the most central files in the codebase.
 
-        # Get the code map for the file's directory
-        path = os.path.dirname(file_path) or self.workspace_root
-        code_map = self._get_code_map(path)
+    Hub files are heavily imported by other files, making them critical
+    for understanding the architecture. Review these first.
 
-        # Find the file in the code map
-        rel_path = os.path.relpath(file_path, path)
-        file_info = None
-        for f in code_map.get("files", []):
-            if f.get("path") == rel_path or f.get("path") == file_path:
-                file_info = f
-                break
+    Args:
+        path: Root directory to analyze
+        top_n: Number of top hubs to return
+        min_imports: Minimum import count to be considered a hub
 
-        if not file_info:
-            return f"File not found in code map: {file_path}"
+    Returns:
+        Ranked list of hub files with import counts
+    """
+    handler = get_handler()
+    abs_path = os.path.abspath(path)
 
-        return self._format_file_structure(file_info, include_private)
+    # Check if map exists
+    exists, error_msg = handler._check_map_exists(abs_path)
+    if not exists:
+        return error_msg
 
-    # --------------------------------------------------------------------------
-    # Helper methods for formatting
-    # --------------------------------------------------------------------------
+    try:
+        code_map = handler._get_code_map(abs_path)
 
-    def _format_compact_summary(self, code_map: Dict, path: str) -> str:
-        """Format code map as compact summary."""
-        files = code_map.get("files", [])
-        total_symbols = sum(len(f.get("symbols", [])) for f in files)
+        # Calculate hub scores
+        import_counts: dict[str, int] = {}
+        file_symbols: dict[str, list[str]] = {}
 
-        lines = [
-            f"# Code Map: {os.path.basename(path)}",
-            f"Files: {len(files)} | Symbols: {total_symbols}",
-            "",
-            "## Top Files by Symbol Count:",
-        ]
-
-        # Sort files by symbol count
-        sorted_files = sorted(files, key=lambda f: len(f.get("symbols", [])), reverse=True)
-        for f in sorted_files[:15]:
-            symbols = f.get("symbols", [])
-            symbol_summary = self._summarize_symbols(symbols)
-            lines.append(f"- {f['path']} [{symbol_summary}]")
-
-        return "\n".join(lines)
-
-    def _summarize_symbols(self, symbols: List[Dict]) -> str:
-        """Create a compact symbol summary."""
-        classes = [s for s in symbols if s.get("type") == "class"]
-        functions = [s for s in symbols if s.get("type") == "function"]
-        methods = [s for s in symbols if s.get("type") == "method"]
-
-        parts = []
-        if classes:
-            names = ", ".join(c["name"] for c in classes[:3])
-            if len(classes) > 3:
-                names += f"...+{len(classes)-3}"
-            parts.append(f"C:{names}")
-        if functions:
-            names = ", ".join(f["name"] for f in functions[:3])
-            if len(functions) > 3:
-                names += f"...+{len(functions)-3}"
-            parts.append(f"F:{names}")
-        if methods:
-            parts.append(f"M:{len(methods)}")
-
-        return " ".join(parts) if parts else "empty"
-
-    def _format_search_results(self, results: List, limit: int) -> str:
-        """Format search results compactly."""
-        if not results:
-            return "No matching symbols found."
-
-        lines = [f"# Search Results ({len(results)} matches)", ""]
-
-        for r in results[:limit]:
-            # Format: file:line - type name
-            location = f"{r.file}:{r.start_line}"
-            type_indicator = {"function": "fn", "class": "cls", "method": "mth"}.get(r.type, r.type)
-            lines.append(f"- `{location}` [{type_indicator}] **{r.name}**")
-
-        if len(results) > limit:
-            lines.append(f"\n... and {len(results) - limit} more results")
-
-        return "\n".join(lines)
-
-    def _calculate_hubs(self, code_map: Dict, min_imports: int) -> List[Dict]:
-        """Calculate hub files based on import relationships."""
-        import_counts: Dict[str, int] = {}
-        file_symbols: Dict[str, List[str]] = {}
-
-        for f in code_map.get("files", []):
-            path = f.get("path", "")
-            file_symbols[path] = [s["name"] for s in f.get("symbols", [])]
-
-            for imp in f.get("imports", []):
-                # Increment import count for the imported module
+        for fpath, file_info in code_map.get("files", {}).items():
+            file_symbols[fpath] = [s["name"] for s in file_info.get("symbols", [])]
+            for imp in file_info.get("imports", []):
                 import_counts[imp] = import_counts.get(imp, 0) + 1
 
         hubs = []
@@ -554,231 +431,218 @@ class CodenavToolHandler:
                     {
                         "file": file_path,
                         "imports": count,
-                        "score": count,
                         "symbols": file_symbols.get(file_path, []),
                     }
                 )
 
-        return hubs
+        hubs = sorted(hubs, key=lambda x: x["imports"], reverse=True)[:top_n]
+        return handler._format_hubs_compact(hubs)
 
-    def _format_file_dependencies(
-        self, code_map: Dict, file: str, direction: str, depth: int
-    ) -> str:
-        """Format dependencies for a specific file."""
-        lines = [f"# Dependencies for: {file}", ""]
+    except Exception as e:
+        logger.exception(f"Error getting hubs for {path}")
+        return f"Error: {e}"
 
-        # Find the file
+
+@mcp.tool()
+def codenav_get_dependencies(
+    path: str,
+    file: str | None = None,
+    direction: str = "both",
+    depth: int = 1,
+) -> str:
+    """Get the dependency graph for a file or the entire project.
+
+    Shows what a file imports and what imports it.
+    Useful for understanding coupling between modules.
+
+    Args:
+        path: Root directory or specific file to analyze
+        file: Specific file to get dependencies for (optional)
+        direction: 'imports', 'imported_by', or 'both'
+        depth: How many levels deep to traverse
+
+    Returns:
+        Import/export relationships in compact format
+    """
+    handler = get_handler()
+    abs_path = os.path.abspath(path)
+
+    # Check if map exists
+    exists, error_msg = handler._check_map_exists(abs_path)
+    if not exists:
+        return error_msg
+
+    try:
+        code_map = handler._get_code_map(abs_path)
+
+        if file:
+            # Find the file
+            file_info = None
+            for fpath, info in code_map.get("files", {}).items():
+                if fpath == file or file in fpath:
+                    file_info = info
+                    file_info["path"] = fpath
+                    break
+
+            if not file_info:
+                return f"File not found: {file}"
+
+            lines = [f"Dependencies for {file_info['path']}:"]
+
+            if direction in ("imports", "both"):
+                imports = file_info.get("imports", [])
+                lines.append(f"imports ({len(imports)}): {', '.join(imports[:10])}")
+                if len(imports) > 10:
+                    lines[-1] += f" +{len(imports)-10} more"
+
+            if direction in ("imported_by", "both"):
+                imported_by = []
+                for fpath, info in code_map.get("files", {}).items():
+                    if file_info["path"] in info.get("imports", []):
+                        imported_by.append(fpath)
+                lines.append(f"imported_by ({len(imported_by)}): {', '.join(imported_by[:10])}")
+                if len(imported_by) > 10:
+                    lines[-1] += f" +{len(imported_by)-10} more"
+
+            return "\n".join(lines)
+        else:
+            # Project-wide summary
+            files = code_map.get("files", {})
+            connections = [(fpath, len(info.get("imports", []))) for fpath, info in files.items()]
+            connections.sort(key=lambda x: x[1], reverse=True)
+
+            lines = [f"Project dependencies ({len(files)} files):", "Most connected:"]
+            for fpath, count in connections[:10]:
+                lines.append(f"  {fpath}: {count} imports")
+
+            return "\n".join(lines)
+
+    except Exception as e:
+        logger.exception(f"Error getting dependencies for {path}")
+        return f"Error: {e}"
+
+
+@mcp.tool()
+def codenav_get_structure(
+    file_path: str,
+    include_private: bool = False,
+) -> str:
+    """Get the structure of a specific file showing all its symbols.
+
+    Use this to see what's in a file before reading it.
+    Helps decide which parts to read in detail.
+
+    Args:
+        file_path: Path to the file to analyze
+        include_private: Include private symbols (starting with _)
+
+    Returns:
+        Hierarchical list of symbols with types and line numbers
+    """
+    handler = get_handler()
+
+    # Determine the project root from file path
+    file_dir = os.path.dirname(os.path.abspath(file_path)) or handler.workspace_root
+
+    # Check if map exists (try parent directories)
+    search_path = file_dir
+    map_found = False
+    while search_path and search_path != "/":
+        if handler._get_map_path(search_path).exists():
+            map_found = True
+            break
+        search_path = os.path.dirname(search_path)
+
+    if not map_found:
+        return "No .codenav.json found. Run `codenav_scan` first to index the codebase."
+
+    try:
+        code_map = handler._get_code_map(search_path)
+        abs_file_path = os.path.abspath(file_path)
+        rel_path = os.path.relpath(abs_file_path, search_path)
+
+        # Find the file in the code map
         file_info = None
-        for f in code_map.get("files", []):
-            if f.get("path") == file or file in f.get("path", ""):
-                file_info = f
+        for fpath, info in code_map.get("files", {}).items():
+            if fpath == rel_path or fpath == abs_file_path or rel_path in fpath:
+                file_info = info
                 break
 
         if not file_info:
-            return f"File not found: {file}"
-
-        if direction in ("imports", "both"):
-            imports = file_info.get("imports", [])
-            lines.append(f"## Imports ({len(imports)})")
-            for imp in imports:
-                lines.append(f"  → {imp}")
-
-        if direction in ("imported_by", "both"):
-            # Find files that import this file
-            imported_by = []
-            for f in code_map.get("files", []):
-                if file_info["path"] in f.get("imports", []):
-                    imported_by.append(f["path"])
-
-            lines.append(f"\n## Imported By ({len(imported_by)})")
-            for imp in imported_by:
-                lines.append(f"  ← {imp}")
-
-        return "\n".join(lines)
-
-    def _format_project_dependencies(self, code_map: Dict, direction: str) -> str:
-        """Format project-wide dependencies."""
-        files = code_map.get("files", [])
-
-        lines = [
-            f"# Project Dependencies ({len(files)} files)",
-            "",
-            "## Most Connected Files:",
-        ]
-
-        # Calculate connectivity
-        connections = []
-        for f in files:
-            imports = len(f.get("imports", []))
-            connections.append((f["path"], imports))
-
-        connections.sort(key=lambda x: x[1], reverse=True)
-
-        for path, count in connections[:10]:
-            lines.append(f"- {path}: {count} imports")
-
-        return "\n".join(lines)
-
-    def _format_file_structure(self, file_info: Dict, include_private: bool) -> str:
-        """Format file structure with symbols."""
-        lines = [f"# Structure: {file_info['path']}", ""]
+            return f"File not found in code map: {file_path}"
 
         symbols = file_info.get("symbols", [])
         if not include_private:
             symbols = [s for s in symbols if not s["name"].startswith("_")]
 
-        # Group by type
+        # Group and format
         classes = [s for s in symbols if s.get("type") == "class"]
         functions = [s for s in symbols if s.get("type") == "function"]
         methods = [s for s in symbols if s.get("type") == "method"]
 
+        lines = [f"Structure of {rel_path}:"]
+
         if classes:
-            lines.append("## Classes")
+            lines.append(f"classes ({len(classes)}):")
             for c in classes:
-                lines.append(
-                    f"- `{c['name']}` (L{c.get('start_line', '?')}-{c.get('end_line', '?')})"
-                )
+                end = c.get("end_line", c["lines"][1] if len(c.get("lines", [])) > 1 else "?")
+                lines.append(f"  {c['name']} L{c['lines'][0]}-{end}")
 
         if functions:
-            lines.append("\n## Functions")
+            lines.append(f"functions ({len(functions)}):")
             for f in functions:
-                lines.append(
-                    f"- `{f['name']}` (L{f.get('start_line', '?')}-{f.get('end_line', '?')})"
-                )
+                end = f.get("end_line", f["lines"][1] if len(f.get("lines", [])) > 1 else "?")
+                lines.append(f"  {f['name']} L{f['lines'][0]}-{end}")
 
         if methods:
-            lines.append(f"\n## Methods ({len(methods)})")
-            for m in methods[:10]:
-                lines.append(f"- `{m['name']}` (L{m.get('start_line', '?')})")
-            if len(methods) > 10:
-                lines.append(f"  ... and {len(methods) - 10} more")
+            lines.append(f"methods ({len(methods)}):")
+            for m in methods[:15]:
+                lines.append(f"  {m['name']} L{m['lines'][0]}")
+            if len(methods) > 15:
+                lines.append(f"  ... +{len(methods)-15} more")
 
         return "\n".join(lines)
 
+    except Exception as e:
+        logger.exception(f"Error getting structure for {file_path}")
+        return f"Error: {e}"
+
 
 # ==============================================================================
-# MCP SERVER
+# MCP RESOURCES
 # ==============================================================================
 
 
-def create_server(workspace_root: Optional[str] = None) -> "Server":
-    """Create and configure the MCP server."""
-    if not HAS_MCP:
-        raise ImportError("MCP SDK not installed. Install with: pip install mcp")
+@mcp.resource("codenav://code-map")
+def get_code_map_resource() -> str:
+    """The current codebase structural map as JSON."""
+    handler = get_handler()
+    code_map = handler._get_code_map(handler.workspace_root)
+    return json.dumps(code_map, indent=2)
 
-    server = Server("codenav")
-    handler = CodenavToolHandler(workspace_root)
 
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        """List available tools."""
-        return [
-            Tool(
-                name=tool["name"],
-                description=tool["description"],
-                inputSchema=tool["inputSchema"],
-            )
-            for tool in TOOLS
-        ]
+@mcp.resource("codenav://dependencies")
+def get_dependencies_resource() -> str:
+    """File dependency relationships as JSON."""
+    handler = get_handler()
+    code_map = handler._get_code_map(handler.workspace_root)
+    deps = {fpath: info.get("imports", []) for fpath, info in code_map.get("files", {}).items()}
+    return json.dumps(deps, indent=2)
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: Dict[str, Any]) -> Sequence[TextContent]:
-        """Execute a tool and return the result."""
-        try:
-            if name == "codenav_scan":
-                result = await handler.handle_scan(arguments)
-            elif name == "codenav_search":
-                result = await handler.handle_search(arguments)
-            elif name == "codenav_read":
-                result = await handler.handle_read(arguments)
-            elif name == "codenav_get_hubs":
-                result = await handler.handle_get_hubs(arguments)
-            elif name == "codenav_get_dependencies":
-                result = await handler.handle_get_dependencies(arguments)
-            elif name == "codenav_get_structure":
-                result = await handler.handle_get_structure(arguments)
-            else:
-                result = f"Unknown tool: {name}"
 
-            return [TextContent(type="text", text=result)]
+# ==============================================================================
+# MCP PROMPTS
+# ==============================================================================
 
-        except Exception as e:
-            logger.exception(f"Error executing tool {name}")
-            return [TextContent(type="text", text=f"Error: {str(e)}")]
 
-    @server.list_resources()
-    async def list_resources() -> list[Resource]:
-        """List available resources."""
-        return [
-            Resource(
-                uri="codenav://code-map",
-                name="Code Map",
-                description="The current codebase structural map",
-                mimeType="application/json",
-            ),
-            Resource(
-                uri="codenav://dependencies",
-                name="Dependency Graph",
-                description="File dependency relationships",
-                mimeType="application/json",
-            ),
-        ]
+@mcp.prompt()
+def analyze_architecture(path: str) -> str:
+    """Analyze the architecture of a codebase.
 
-    @server.read_resource()
-    async def read_resource(uri: str) -> str:
-        """Read a resource by URI."""
-        if uri == "codenav://code-map":
-            code_map = handler._get_code_map(handler.workspace_root)
-            return json.dumps(code_map, indent=2)
-        elif uri == "codenav://dependencies":
-            code_map = handler._get_code_map(handler.workspace_root)
-            # Extract just the dependencies
-            deps = {f["path"]: f.get("imports", []) for f in code_map.get("files", [])}
-            return json.dumps(deps, indent=2)
-        else:
-            return f"Unknown resource: {uri}"
-
-    @server.list_prompts()
-    async def list_prompts() -> list[Prompt]:
-        """List available prompts."""
-        return [
-            Prompt(
-                name="analyze-architecture",
-                description="Analyze the architecture of a codebase",
-                arguments=[
-                    PromptArgument(
-                        name="path",
-                        description="Path to the codebase",
-                        required=True,
-                    )
-                ],
-            ),
-            Prompt(
-                name="find-entry-points",
-                description="Find the main entry points of an application",
-                arguments=[
-                    PromptArgument(
-                        name="path",
-                        description="Path to the codebase",
-                        required=True,
-                    )
-                ],
-            ),
-        ]
-
-    @server.get_prompt()
-    async def get_prompt(name: str, arguments: Dict[str, str]) -> GetPromptResult:
-        """Get a prompt by name."""
-        path = arguments.get("path", ".")
-
-        if name == "analyze-architecture":
-            return GetPromptResult(
-                messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(
-                            type="text",
-                            text=f"""Analyze the architecture of the codebase at {path}.
+    Args:
+        path: Path to the codebase
+    """
+    return f"""Analyze the architecture of the codebase at {path}.
 
 1. First, scan the codebase using codenav_scan
 2. Identify the architectural hubs using codenav_get_hubs
@@ -787,46 +651,41 @@ def create_server(workspace_root: Optional[str] = None) -> "Server":
    - Overall structure and organization
    - Key modules and their responsibilities
    - Coupling between components
-   - Potential areas for improvement""",
-                        ),
-                    )
-                ],
-            )
-        elif name == "find-entry-points":
-            return GetPromptResult(
-                messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(
-                            type="text",
-                            text=f"""Find and explain the entry points for the application at {path}.
+   - Potential areas for improvement"""
+
+
+@mcp.prompt()
+def find_entry_points(path: str) -> str:
+    """Find the main entry points of an application.
+
+    Args:
+        path: Path to the codebase
+    """
+    return f"""Find and explain the entry points for the application at {path}.
 
 1. Scan the codebase using codenav_scan
 2. Search for common entry point patterns (main, cli, app)
 3. Read the relevant files to understand how the application starts
-4. Provide a summary of how to run and use the application""",
-                        ),
-                    )
-                ],
-            )
-        else:
-            return GetPromptResult(
-                messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(type="text", text=f"Unknown prompt: {name}"),
-                    )
-                ],
-            )
-
-    return server
+4. Provide a summary of how to run and use the application"""
 
 
-async def run_server(workspace_root: Optional[str] = None):
+# ==============================================================================
+# ENTRY POINTS
+# ==============================================================================
+
+
+def create_server(workspace_root: str | None = None) -> FastMCP:
+    """Create and return the MCP server instance."""
+    global _handler
+    _handler = CodenavToolHandler(workspace_root)
+    return mcp
+
+
+async def run_server(workspace_root: str | None = None):
     """Run the MCP server using stdio transport."""
-    server = create_server(workspace_root)
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+    global _handler
+    _handler = CodenavToolHandler(workspace_root)
+    await mcp.run_stdio_async()
 
 
 def main():
@@ -852,11 +711,10 @@ def main():
     else:
         logging.basicConfig(level=logging.INFO)
 
-    if not HAS_MCP:
-        print("Error: MCP SDK not installed. Install with: pip install mcp", file=sys.stderr)
-        sys.exit(1)
+    global _handler
+    _handler = CodenavToolHandler(args.workspace)
 
-    asyncio.run(run_server(args.workspace))
+    mcp.run()
 
 
 if __name__ == "__main__":

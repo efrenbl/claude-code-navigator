@@ -26,7 +26,6 @@ import sys
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 from .colors import get_colors
 
@@ -61,13 +60,13 @@ class SearchResult:
     name: str
     type: str
     file: str
-    lines: List[int]
-    signature: Optional[str] = None
-    docstring: Optional[str] = None
-    parent: Optional[str] = None
+    lines: list[int]
+    signature: str | None = None
+    docstring: str | None = None
+    parent: str | None = None
     score: float = 0.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert the search result to a dictionary.
 
         Returns:
@@ -125,7 +124,7 @@ class CodeSearcher:
         self.map_path = map_path
         self.code_map = self._load_map()
 
-    def _load_map(self) -> Dict:
+    def _load_map(self) -> dict:
         """Load the code map from file.
 
         Returns:
@@ -149,11 +148,11 @@ class CodeSearcher:
     def search_symbol(
         self,
         query: str,
-        symbol_type: Optional[str] = None,
-        file_pattern: Optional[str] = None,
+        symbol_type: str | None = None,
+        file_pattern: str | None = None,
         limit: int = 10,
         fuzzy: bool = True,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """Search for symbols by name.
 
         Performs fuzzy matching against the code map index to find functions,
@@ -255,7 +254,7 @@ class CodeSearcher:
         results.sort(key=lambda x: (-x.score, x.name))
         return results[:limit]
 
-    def search_file(self, pattern: str, limit: int = 20) -> List[Dict]:
+    def search_file(self, pattern: str, limit: int = 20) -> list[dict]:
         """Search for files by path pattern.
 
         Args:
@@ -291,7 +290,7 @@ class CodeSearcher:
         results.sort(key=lambda x: x["file"])
         return results[:limit]
 
-    def get_file_structure(self, file_path: str) -> Optional[Dict]:
+    def get_file_structure(self, file_path: str) -> dict | None:
         """Get the structure of a specific file.
 
         Returns all symbols in the file organized hierarchically by type.
@@ -360,7 +359,7 @@ class CodeSearcher:
             "other": other if other else None,
         }
 
-    def find_dependencies(self, symbol_name: str, file_path: Optional[str] = None) -> Dict:
+    def find_dependencies(self, symbol_name: str, file_path: str | None = None) -> dict:
         """Find what a symbol depends on and what depends on it.
 
         Args:
@@ -418,7 +417,7 @@ class CodeSearcher:
             "called_by": depended_by,
         }
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get statistics about the codebase.
 
         Returns:
@@ -446,8 +445,8 @@ class CodeSearcher:
         }
 
     def list_by_type(
-        self, symbol_type: str, file_pattern: Optional[str] = None, limit: int = 100
-    ) -> List[SearchResult]:
+        self, symbol_type: str, file_pattern: str | None = None, limit: int = 100
+    ) -> list[SearchResult]:
         """List all symbols of a specific type.
 
         Args:
@@ -496,7 +495,7 @@ class CodeSearcher:
         results.sort(key=lambda x: (x.file, x.name))
         return results[:limit]
 
-    def check_stale_files(self, root_path: Optional[str] = None) -> Dict:
+    def check_stale_files(self, root_path: str | None = None) -> dict:
         """Check for files that have changed since the map was generated.
 
         Compares current file hashes with stored hashes to detect modifications.
@@ -551,7 +550,7 @@ class CodeSearcher:
             "generated_at": self.code_map.get("generated_at"),
         }
 
-    def get_changes_since_commit(self, commit: str, root_path: Optional[str] = None) -> Dict:
+    def get_changes_since_commit(self, commit: str, root_path: str | None = None) -> dict:
         """Get symbols in files that changed since a specific git commit.
 
         Args:
@@ -610,7 +609,7 @@ class CodeSearcher:
 
 
 def format_search_output(
-    result: Union[Dict, List],
+    result: dict | list,
     style: str = "json",
     compact: bool = False,
     no_color: bool = False,

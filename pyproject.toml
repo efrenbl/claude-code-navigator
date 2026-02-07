@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "codenav"
 version = "2.0.0"
-description = "Token-efficient code navigation for large codebases - reduce token usage by 97%"
+description = "MCP server for token-efficient code navigation - reduce token usage by 97%"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
     {name = "Efren", email = "efren@example.com"}
 ]
@@ -16,6 +16,8 @@ maintainers = [
     {name = "Efren", email = "efren@example.com"}
 ]
 keywords = [
+    "mcp",
+    "model-context-protocol",
     "code-navigation",
     "token-optimization",
     "ast",
@@ -23,9 +25,7 @@ keywords = [
     "developer-tools",
     "ai-coding",
     "codebase-indexing",
-    "cursor",
-    "vscode",
-    "multi-ide"
+    "claude"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -34,8 +34,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -45,8 +43,10 @@ classifiers = [
     "Topic :: Utilities",
 ]
 
-# No external dependencies - uses only standard library
-dependencies = []
+# Core dependencies - MCP is required
+dependencies = [
+    "mcp>=1.0.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -64,21 +64,17 @@ ast = [
     "tree-sitter-typescript>=0.23.0; python_version>='3.9'",
 ]
 graph = [
-    "networkx>=3.0; python_version>='3.10'",
+    "networkx>=3.0",
 ]
 fast = [
-    "ast-grep-py>=0.40.0; python_version>='3.9'",
-]
-mcp = [
-    "mcp>=1.0.0; python_version>='3.10'",
+    "ast-grep-py>=0.40.0",
 ]
 all = [
-    "tree-sitter>=0.23.0; python_version>='3.9'",
-    "tree-sitter-javascript>=0.23.0; python_version>='3.9'",
-    "tree-sitter-typescript>=0.23.0; python_version>='3.9'",
-    "networkx>=3.0; python_version>='3.10'",
-    "ast-grep-py>=0.40.0; python_version>='3.9'",
-    "mcp>=1.0.0; python_version>='3.10'",
+    "tree-sitter>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
+    "networkx>=3.0",
+    "ast-grep-py>=0.40.0",
 ]
 
 [project.urls]
@@ -89,12 +85,12 @@ Issues = "https://github.com/efrenbl/code-navigator/issues"
 Changelog = "https://github.com/efrenbl/code-navigator/blob/main/CHANGELOG.md"
 
 [project.scripts]
-# Primary CLI (recommended)
+# MCP Server (primary)
+codenav-mcp = "codenav.mcp:main"
+
+# CLI (secondary)
 codenav = "codenav.cli:main"
 cnv = "codenav.cli:main"  # Short alias
-
-# MCP Server
-codenav-mcp = "codenav.mcp:main"
 
 # DEPRECATED: Legacy commands - will be REMOVED in v3.0.0
 # Use `codenav map`, `codenav search`, `codenav read` instead
@@ -111,7 +107,7 @@ where = ["src"]
 # Black configuration
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+target-version = ['py310', 'py311', 'py312']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -143,7 +139,7 @@ addopts = "-v --tb=short"
 
 # mypy configuration
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
@@ -170,7 +166,7 @@ exclude_lines = [
 # Ruff configuration (replaces flake8 and isort)
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 src = ["src", "tests"]
 
 [tool.ruff.lint]

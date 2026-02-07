@@ -16,7 +16,7 @@ Example:
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Check for ast-grep availability
 try:
@@ -48,9 +48,9 @@ class AstGrepSymbol:
     file_path: str
     line_start: int
     line_end: int
-    signature: Optional[str] = None
-    parent: Optional[str] = None
-    meta_vars: Dict[str, str] = field(default_factory=dict)
+    signature: str | None = None
+    parent: str | None = None
+    meta_vars: dict[str, str] = field(default_factory=dict)
 
 
 class AstGrepAnalyzer:
@@ -213,7 +213,7 @@ class AstGrepAnalyzer:
         """Check if analysis is available for this language."""
         return self._available and self.language in self.PATTERNS
 
-    def analyze(self) -> List[AstGrepSymbol]:
+    def analyze(self) -> list[AstGrepSymbol]:
         """Extract all symbols from the source code.
 
         Returns:
@@ -240,7 +240,7 @@ class AstGrepAnalyzer:
 
         return symbols
 
-    def _find_matches(self, node: Any, pattern_config) -> List[Any]:
+    def _find_matches(self, node: Any, pattern_config) -> list[Any]:
         """Find matches using pattern or kind."""
         if isinstance(pattern_config, str):
             # Direct pattern
@@ -257,7 +257,7 @@ class AstGrepAnalyzer:
                 return list(node.find_all(pattern=pattern_config["pattern"]))
         return []
 
-    def _extract_symbol(self, match: Any, symbol_type: str) -> Optional[AstGrepSymbol]:
+    def _extract_symbol(self, match: Any, symbol_type: str) -> AstGrepSymbol | None:
         """Extract symbol information from a match."""
         try:
             # Try to get name from meta-variable
@@ -296,7 +296,7 @@ class AstGrepAnalyzer:
         except Exception:
             return None
 
-    def _extract_name_fallback(self, match: Any, symbol_type: str) -> Optional[str]:
+    def _extract_name_fallback(self, match: Any, symbol_type: str) -> str | None:
         """Fallback method to extract name from AST node."""
         text = match.text()
 
@@ -325,7 +325,7 @@ class AstGrepAnalyzer:
 
         return None
 
-    def find_imports(self) -> List[str]:
+    def find_imports(self) -> list[str]:
         """Extract all import statements.
 
         Returns:
@@ -360,7 +360,7 @@ class AstGrepAnalyzer:
 
         return imports
 
-    def find_classes(self) -> List[Tuple[str, List[str]]]:
+    def find_classes(self) -> list[tuple[str, list[str]]]:
         """Find classes with their methods.
 
         Returns:
@@ -415,7 +415,7 @@ def analyze_with_ast_grep(
     file_path: str,
     source: str,
     language: str,
-) -> List[AstGrepSymbol]:
+) -> list[AstGrepSymbol]:
     """Convenience function to analyze a file with ast-grep.
 
     Args:

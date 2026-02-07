@@ -19,7 +19,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 try:
     import networkx as nx
@@ -47,9 +47,9 @@ class FileNode:
 
     path: str
     language: str = ""
-    imports: List[str] = field(default_factory=list)
-    resolved_imports: List[str] = field(default_factory=list)
-    importers: List[str] = field(default_factory=list)
+    imports: list[str] = field(default_factory=list)
+    resolved_imports: list[str] = field(default_factory=list)
+    importers: list[str] = field(default_factory=list)
     pagerank: float = 0.0
     in_degree: int = 0
     out_degree: int = 0
@@ -155,12 +155,12 @@ class DependencyGraph:
 
         self.damping = damping or self.DEFAULT_DAMPING
         self.graph: nx.DiGraph = nx.DiGraph()
-        self.nodes: Dict[str, FileNode] = {}
-        self.file_index: Dict[str, List[str]] = {}  # Various keys -> file paths
+        self.nodes: dict[str, FileNode] = {}
+        self.file_index: dict[str, list[str]] = {}  # Various keys -> file paths
         self.module_name: str = ""
         self._built = False
 
-    def build(self, languages: List[str] = None) -> "DependencyGraph":
+    def build(self, languages: list[str] = None) -> "DependencyGraph":
         """Scan the project and build the dependency graph.
 
         Args:
@@ -237,7 +237,7 @@ class DependencyGraph:
         # Fallback to directory name
         return self.root.name
 
-    def _scan_files(self, languages: List[str] = None) -> List[str]:
+    def _scan_files(self, languages: list[str] = None) -> list[str]:
         """Scan directory for source files.
 
         Args:
@@ -268,7 +268,7 @@ class DependencyGraph:
 
         return files
 
-    def _build_file_index(self, files: List[str]) -> None:
+    def _build_file_index(self, files: list[str]) -> None:
         """Build multi-key index for fast import resolution.
 
         Creates indexes by:
@@ -355,7 +355,7 @@ class DependencyGraph:
                 return lang
         return ""
 
-    def _extract_python_imports(self, content: str) -> List[str]:
+    def _extract_python_imports(self, content: str) -> list[str]:
         """Extract imports from Python code using AST."""
         imports = []
         try:
@@ -374,7 +374,7 @@ class DependencyGraph:
             pass
         return imports
 
-    def _extract_js_ts_imports(self, content: str) -> List[str]:
+    def _extract_js_ts_imports(self, content: str) -> list[str]:
         """Extract imports from JavaScript/TypeScript code."""
         imports = []
         # Match: import ... from 'path' or require('path')
@@ -388,7 +388,7 @@ class DependencyGraph:
             imports.extend(re.findall(pattern, content))
         return imports
 
-    def _extract_go_imports(self, content: str) -> List[str]:
+    def _extract_go_imports(self, content: str) -> list[str]:
         """Extract imports from Go code."""
         imports = []
         # Match single import: import "path"
@@ -399,7 +399,7 @@ class DependencyGraph:
             imports.extend(re.findall(r'"([^"]+)"', block_match.group(1)))
         return imports
 
-    def _extract_rust_imports(self, content: str) -> List[str]:
+    def _extract_rust_imports(self, content: str) -> list[str]:
         """Extract imports from Rust code."""
         imports = []
         # Match: use crate::path, use super::path, use path
@@ -408,7 +408,7 @@ class DependencyGraph:
         imports.extend(re.findall(r"mod\s+(\w+)", content))
         return imports
 
-    def _extract_generic_imports(self, content: str) -> List[str]:
+    def _extract_generic_imports(self, content: str) -> list[str]:
         """Fallback import extraction using common patterns."""
         imports = []
         patterns = [
@@ -437,7 +437,7 @@ class DependencyGraph:
                 if imported_file in self.nodes:
                     self.nodes[imported_file].importers.append(path)
 
-    def _resolve_import(self, imp: str, from_file: str, language: str) -> List[str]:
+    def _resolve_import(self, imp: str, from_file: str, language: str) -> list[str]:
         """Resolve an import string to file path(s).
 
         Uses multiple strategies in order:
@@ -491,7 +491,7 @@ class DependencyGraph:
 
         return imp
 
-    def _resolve_relative_import(self, imp: str, from_dir: str) -> List[str]:
+    def _resolve_relative_import(self, imp: str, from_dir: str) -> list[str]:
         """Resolve ./foo or ../bar style imports."""
         # Count parent levels
         levels = 0
@@ -514,7 +514,7 @@ class DependencyGraph:
 
         return self._try_exact_match(candidate)
 
-    def _try_exact_match(self, path: str) -> List[str]:
+    def _try_exact_match(self, path: str) -> list[str]:
         """Try to match path exactly (with common extensions)."""
         extensions = [
             "",
@@ -541,7 +541,7 @@ class DependencyGraph:
 
         return []
 
-    def _try_suffix_match(self, normalized: str) -> List[str]:
+    def _try_suffix_match(self, normalized: str) -> list[str]:
         """Find files where path ends with normalized import."""
         extensions = ["", ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs"]
 
@@ -598,7 +598,7 @@ class DependencyGraph:
             for node in self.nodes.values():
                 node.pagerank = uniform
 
-    def get_critical_paths(self, top_n: int = 10) -> List[Tuple[str, float]]:
+    def get_critical_paths(self, top_n: int = 10) -> list[tuple[str, float]]:
         """Get the top N architecturally important files.
 
         Returns files ranked by PageRank score, which represents their
@@ -644,7 +644,7 @@ class DependencyGraph:
             return False
         return self.nodes[path].in_degree >= threshold
 
-    def get_hub_files(self, threshold: int = 3) -> List[str]:
+    def get_hub_files(self, threshold: int = 3) -> list[str]:
         """Get all files that are imported by >= threshold other files.
 
         Args:
@@ -655,7 +655,7 @@ class DependencyGraph:
         """
         return [path for path, node in self.nodes.items() if node.in_degree >= threshold]
 
-    def get_connected_files(self, path: str) -> List[str]:
+    def get_connected_files(self, path: str) -> list[str]:
         """Get all files connected to the given file (imports + importers).
 
         Args:
@@ -672,7 +672,7 @@ class DependencyGraph:
         connected.discard(path)
         return list(connected)
 
-    def get_dependency_chain(self, path: str, depth: int = 3) -> Dict[str, Any]:
+    def get_dependency_chain(self, path: str, depth: int = 3) -> dict[str, Any]:
         """Get dependency chain (what this file imports, recursively).
 
         Args:
@@ -683,7 +683,7 @@ class DependencyGraph:
             Nested dict representing the dependency tree.
         """
 
-        def _build_chain(current: str, remaining_depth: int, seen: Set[str]) -> Dict:
+        def _build_chain(current: str, remaining_depth: int, seen: set[str]) -> dict:
             if remaining_depth <= 0 or current in seen or current not in self.nodes:
                 return {}
 
@@ -700,7 +700,7 @@ class DependencyGraph:
 
         return {path: _build_chain(path, depth, set())}
 
-    def get_importers_chain(self, path: str, depth: int = 3) -> Dict[str, Any]:
+    def get_importers_chain(self, path: str, depth: int = 3) -> dict[str, Any]:
         """Get reverse dependency chain (what imports this file, recursively).
 
         Args:
@@ -711,7 +711,7 @@ class DependencyGraph:
             Nested dict representing who imports this file.
         """
 
-        def _build_chain(current: str, remaining_depth: int, seen: Set[str]) -> Dict:
+        def _build_chain(current: str, remaining_depth: int, seen: set[str]) -> dict:
             if remaining_depth <= 0 or current in seen or current not in self.nodes:
                 return {}
 
@@ -728,7 +728,7 @@ class DependencyGraph:
 
         return {path: _build_chain(path, depth, set())}
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get statistics about the dependency graph.
 
         Returns:
@@ -755,15 +755,15 @@ class DependencyGraph:
             ),
         }
 
-    def _count_by_language(self) -> Dict[str, int]:
+    def _count_by_language(self) -> dict[str, int]:
         """Count files by language."""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for node in self.nodes.values():
             lang = node.language or "unknown"
             counts[lang] = counts.get(lang, 0) + 1
         return counts
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Export the graph as a serializable dictionary.
 
         Returns:
@@ -788,7 +788,7 @@ class DependencyGraph:
         }
 
 
-def analyze_repository(root: str, top_n: int = 10) -> Dict[str, Any]:
+def analyze_repository(root: str, top_n: int = 10) -> dict[str, Any]:
     """Convenience function to analyze a repository.
 
     Args:
